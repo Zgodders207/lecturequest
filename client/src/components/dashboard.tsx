@@ -4,7 +4,8 @@ import {
   Zap, Flame, BookOpen, 
   Play, Upload, ChevronRight, Trash2, Bell,
   Target, Award, TrendingUp, Trophy, Clock,
-  Calendar, CalendarDays, AlertTriangle, RefreshCw, Settings, X, Loader2, MapPin, FileCheck, Sparkles
+  Calendar, CalendarDays, AlertTriangle, RefreshCw, Settings, X, Loader2, MapPin, FileCheck, Sparkles,
+  Brain, Briefcase, Download, GraduationCap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,21 @@ interface DailyQuizStatus {
   weeklyStreak: number;
 }
 
+interface SkillsData {
+  skills: {
+    name: string;
+    description: string;
+    category: string;
+    relevantCareers: string[];
+    proficiencyLevel: "developing" | "intermediate" | "proficient";
+    occurrenceCount: number;
+  }[];
+  totalSkills: number;
+  proficientCount: number;
+  intermediateCount: number;
+  developingCount: number;
+}
+
 interface DashboardProps {
   userProfile: UserProfile;
   lectureHistory: Lecture[];
@@ -81,6 +97,10 @@ export function Dashboard({
   
   const { data: dailyQuizStatus } = useQuery<DailyQuizStatus>({
     queryKey: ["/api/daily-quiz/status"],
+  });
+  
+  const { data: skillsData } = useQuery<SkillsData>({
+    queryKey: ["/api/skills"],
   });
   
   const setCalendarMutation = useMutation({
@@ -183,6 +203,13 @@ export function Dashboard({
   const lecturesNeedingReview = lectureHistory.filter((l) => l.needsReview);
   const hasReviewsDue = lecturesNeedingReview.length > 0;
   
+  const totalQuestionsAnswered = lectureHistory.reduce((sum, l) => {
+    return sum + (l.spacedRepetitionData?.reduce((topicSum, topic) => topicSum + (topic.reviewCount || 0), 0) || 0);
+  }, 0);
+  
+  const masteredTopicsCount = userProfile.masteredTopics?.length || 0;
+  const skillsCount = skillsData?.totalSkills || 0;
+  
   const hasCalendar = calendarData?.settings !== null;
   const upcomingLectures = calendarData?.upcomingLectures || [];
   const upcomingExams = calendarData?.upcomingExams || [];
@@ -252,7 +279,11 @@ export function Dashboard({
                 <span>{xpToNext.toLocaleString()} XP to Level {userProfile.level + 1}</span>
                 <span>{Math.round(progressPercent)}%</span>
               </div>
-              <Progress value={progressPercent} className="h-1.5" />
+              <Progress 
+                value={progressPercent} 
+                className="h-1.5" 
+                aria-label={`Level ${userProfile.level} progress: ${Math.round(progressPercent)}% to level ${userProfile.level + 1}`}
+              />
             </div>
           </div>
         </section>
@@ -401,6 +432,7 @@ export function Dashboard({
                 disabled={refreshCalendarMutation.isPending}
                 className="gap-2"
                 data-testid="button-refresh-calendar"
+                aria-label="Refresh calendar"
               >
                 <RefreshCw className={`h-4 w-4 ${refreshCalendarMutation.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
                 Refresh
@@ -486,7 +518,7 @@ export function Dashboard({
 
         <section aria-label="Statistics">
           <h2 className="font-serif text-2xl mb-8">Your Progress</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-12 gap-y-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-12 gap-y-8" role="group" aria-label="Statistics summary">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Zap className="h-4 w-4 text-gold" aria-hidden="true" />
@@ -540,7 +572,167 @@ export function Dashboard({
               </div>
             </div>
           </div>
+          
+          <div className="grid grid-cols-3 gap-x-12 gap-y-8 mt-8 pt-8 border-t" role="group" aria-label="Impact metrics">
+            <div data-testid="stat-questions-answered">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="h-4 w-4 text-primary" aria-hidden="true" />
+                <span className="text-sm text-muted-foreground">Questions Answered</span>
+              </div>
+              <p className="text-2xl font-semibold tabular-nums">
+                {totalQuestionsAnswered.toLocaleString()}
+              </p>
+            </div>
+
+            <div data-testid="stat-topics-mastered">
+              <div className="flex items-center gap-2 mb-2">
+                <Trophy className={`h-4 w-4 ${masteredTopicsCount > 0 ? "text-gold" : "text-muted-foreground"}`} aria-hidden="true" />
+                <span className="text-sm text-muted-foreground">Topics Mastered</span>
+              </div>
+              <p className={`text-2xl font-semibold tabular-nums ${masteredTopicsCount > 0 ? "text-gold" : ""}`}>
+                {masteredTopicsCount}
+              </p>
+            </div>
+
+            <div data-testid="stat-skills-developed">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className={`h-4 w-4 ${skillsCount > 0 ? "text-primary" : "text-muted-foreground"}`} aria-hidden="true" />
+                <span className="text-sm text-muted-foreground">Skills Developed</span>
+              </div>
+              <p className={`text-2xl font-semibold tabular-nums ${skillsCount > 0 ? "text-primary" : ""}`}>
+                {skillsCount}
+              </p>
+            </div>
+          </div>
         </section>
+
+        {skillsData && skillsData.skills.length > 0 && (
+          <section aria-label="Skills Profile" data-testid="section-skills-profile">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="font-serif text-2xl">Skills Profile</h2>
+                <p className="text-muted-foreground mt-1">
+                  {skillsData.totalSkills} transferable skill{skillsData.totalSkills !== 1 ? 's' : ''} identified from your learning
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  const csvContent = [
+                    ["Skill", "Category", "Proficiency", "Relevant Careers", "Times Practiced"].join(","),
+                    ...skillsData.skills.map(skill => [
+                      `"${skill.name}"`,
+                      `"${skill.category}"`,
+                      skill.proficiencyLevel,
+                      `"${skill.relevantCareers.join("; ")}"`,
+                      skill.occurrenceCount
+                    ].join(","))
+                  ].join("\n");
+                  const blob = new Blob([csvContent], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "skills-profile.csv";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast({ title: "Skills exported", description: "Your skills profile has been downloaded." });
+                }}
+                data-testid="button-export-skills"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Export Skills
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-6 mb-8">
+              <div className="p-4 rounded-xl bg-success/5 border border-success/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <GraduationCap className="h-4 w-4 text-success" aria-hidden="true" />
+                  <span className="text-sm text-muted-foreground">Proficient</span>
+                </div>
+                <p className="text-2xl font-semibold text-success tabular-nums" data-testid="text-proficient-count">
+                  {skillsData.proficientCount}
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-gold/5 border border-gold/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="h-4 w-4 text-gold" aria-hidden="true" />
+                  <span className="text-sm text-muted-foreground">Intermediate</span>
+                </div>
+                <p className="text-2xl font-semibold text-gold tabular-nums" data-testid="text-intermediate-count">
+                  {skillsData.intermediateCount}
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <span className="text-sm text-muted-foreground">Developing</span>
+                </div>
+                <p className="text-2xl font-semibold text-primary tabular-nums" data-testid="text-developing-count">
+                  {skillsData.developingCount}
+                </p>
+              </div>
+            </div>
+
+            <ul className="space-y-4" role="list" aria-label="Skills list">
+              {skillsData.skills.slice(0, 6).map((skill, index) => (
+                <li 
+                  key={skill.name} 
+                  className="flex items-start gap-4 p-4 rounded-xl bg-card border"
+                  data-testid={`skill-item-${index}`}
+                >
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 ${
+                    skill.proficiencyLevel === "proficient" ? "bg-success/10" :
+                    skill.proficiencyLevel === "intermediate" ? "bg-gold/10" : "bg-primary/10"
+                  }`}>
+                    <Brain className={`h-5 w-5 ${
+                      skill.proficiencyLevel === "proficient" ? "text-success" :
+                      skill.proficiencyLevel === "intermediate" ? "text-gold" : "text-primary"
+                    }`} aria-hidden="true" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium" data-testid={`text-skill-name-dashboard-${index}`}>{skill.name}</h3>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs capitalize ${
+                          skill.proficiencyLevel === "proficient" ? "border-success/30 text-success" :
+                          skill.proficiencyLevel === "intermediate" ? "border-gold/30 text-gold" : "border-primary/30 text-primary"
+                        }`}
+                      >
+                        {skill.proficiencyLevel}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        practiced {skill.occurrenceCount} time{skill.occurrenceCount !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{skill.description}</p>
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <Briefcase className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                      <span className="text-xs text-muted-foreground">Valuable for:</span>
+                      {skill.relevantCareers.slice(0, 3).map((career, careerIndex) => (
+                        <Badge 
+                          key={career} 
+                          variant="secondary" 
+                          className="text-xs"
+                          data-testid={`badge-career-${index}-${careerIndex}`}
+                        >
+                          {career}
+                        </Badge>
+                      ))}
+                      {skill.relevantCareers.length > 3 && (
+                        <span className="text-xs text-muted-foreground">
+                          +{skill.relevantCareers.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section aria-label="Study Materials">
           <div className="flex items-center justify-between mb-8">
@@ -558,6 +750,7 @@ export function Dashboard({
                     variant="ghost"
                     size="icon"
                     data-testid="button-demo-mode"
+                    aria-label="Load sample data for demonstration"
                   >
                     <Sparkles className="h-4 w-4" aria-hidden="true" />
                   </Button>
@@ -574,6 +767,7 @@ export function Dashboard({
                     size="icon"
                     className={hasCalendar ? "text-primary" : ""}
                     data-testid="button-calendar-settings"
+                    aria-label={hasCalendar ? "Calendar connected - open settings" : "Connect your lecture calendar"}
                   >
                     <Calendar className="h-4 w-4" aria-hidden="true" />
                   </Button>
@@ -667,6 +861,7 @@ export function Dashboard({
                         onClick={() => onDeleteLecture(lecture.id)}
                         className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                         data-testid={`button-delete-lecture-${lecture.id}`}
+                        aria-label={`Delete lecture: ${lecture.title}`}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
@@ -697,25 +892,28 @@ export function Dashboard({
             </Button>
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-4" role="list" aria-label="Recent achievements">
             {userProfile.achievements.slice(0, 8).map((achievement) => (
               <Tooltip key={achievement.id}>
                 <TooltipTrigger asChild>
                   <div
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       achievement.unlocked
                         ? "bg-gold/5 border border-gold/20"
                         : "opacity-50"
                     }`}
+                    role="listitem"
+                    tabIndex={0}
+                    aria-label={`${achievement.name}: ${achievement.description}${achievement.unlocked ? ' - Unlocked' : ` - Locked, progress ${achievement.progress || 0} of ${achievement.maxProgress || 0}`}`}
                   >
-                    <div className={!achievement.unlocked ? "grayscale" : ""}>
+                    <div className={!achievement.unlocked ? "grayscale" : ""} aria-hidden="true">
                       {getAchievementIcon(achievement.icon)}
                     </div>
                     <span className={`text-sm font-medium ${achievement.unlocked ? "" : "text-muted-foreground"}`}>
                       {achievement.name}
                     </span>
                     {!achievement.unlocked && achievement.maxProgress && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground" aria-hidden="true">
                         {achievement.progress || 0}/{achievement.maxProgress}
                       </span>
                     )}

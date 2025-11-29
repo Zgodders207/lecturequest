@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+// Transferable skill identified from lecture content
+export interface TransferableSkill {
+  name: string; // e.g., "Analytical Thinking", "Problem Solving"
+  description: string; // Brief explanation of the skill
+  category: "cognitive" | "technical" | "communication" | "interpersonal" | "organizational";
+  relevantCareers: string[]; // Career paths where this skill is valuable
+  proficiencyLevel: "developing" | "intermediate" | "proficient"; // Based on quiz performance
+}
+
 // Question for quizzes
 export interface Question {
   question: string;
@@ -171,6 +180,8 @@ export interface Lecture {
   dailyQuizzes: DailyQuiz[];
   needsReview: boolean;
   lastReviewed?: string;
+  identifiedSkills?: TransferableSkill[]; // Skills identified from this lecture
+  questionsAnswered?: number; // Number of questions answered in the last quiz
 }
 
 // User profile with gamification data
@@ -397,6 +408,11 @@ export const DEMO_LECTURES: Lecture[] = [
     ],
     needsReview: false,
     lastReviewed: "2025-11-15",
+    questionsAnswered: 10,
+    identifiedSkills: [
+      { name: "Logical Reasoning", description: "Ability to follow step-by-step logical processes and understand cause-effect relationships", category: "cognitive", relevantCareers: ["Software Engineer", "Data Analyst", "Systems Architect"], proficiencyLevel: "proficient" },
+      { name: "Problem Decomposition", description: "Breaking complex problems into smaller, manageable components", category: "cognitive", relevantCareers: ["Software Developer", "Project Manager", "Consultant"], proficiencyLevel: "proficient" },
+    ],
   },
   {
     id: "demo-2",
@@ -413,6 +429,11 @@ export const DEMO_LECTURES: Lecture[] = [
     ],
     needsReview: false,
     lastReviewed: "2025-11-18",
+    questionsAnswered: 10,
+    identifiedSkills: [
+      { name: "Algorithmic Thinking", description: "Designing systematic approaches to solve problems efficiently", category: "cognitive", relevantCareers: ["Software Engineer", "Machine Learning Engineer", "Quantitative Analyst"], proficiencyLevel: "proficient" },
+      { name: "Pattern Recognition", description: "Identifying recurring structures and optimizing repetitive processes", category: "cognitive", relevantCareers: ["Data Scientist", "Business Analyst", "UX Researcher"], proficiencyLevel: "intermediate" },
+    ],
   },
   {
     id: "demo-3",
@@ -428,6 +449,11 @@ export const DEMO_LECTURES: Lecture[] = [
     ],
     needsReview: true,
     lastReviewed: "2025-11-16",
+    questionsAnswered: 5,
+    identifiedSkills: [
+      { name: "Code Organization", description: "Structuring code for readability, maintainability, and reusability", category: "technical", relevantCareers: ["Software Engineer", "Tech Lead", "DevOps Engineer"], proficiencyLevel: "intermediate" },
+      { name: "Abstraction", description: "Hiding complexity and exposing only essential interfaces", category: "cognitive", relevantCareers: ["Systems Architect", "API Developer", "Product Engineer"], proficiencyLevel: "developing" },
+    ],
   },
   {
     id: "demo-4",
@@ -443,6 +469,11 @@ export const DEMO_LECTURES: Lecture[] = [
     ],
     needsReview: false,
     lastReviewed: "2025-11-20",
+    questionsAnswered: 10,
+    identifiedSkills: [
+      { name: "Data Organization", description: "Efficiently structuring and accessing collections of information", category: "technical", relevantCareers: ["Database Administrator", "Backend Developer", "Data Engineer"], proficiencyLevel: "proficient" },
+      { name: "Optimization", description: "Improving algorithm efficiency and reducing computational complexity", category: "technical", relevantCareers: ["Performance Engineer", "Machine Learning Engineer", "Game Developer"], proficiencyLevel: "intermediate" },
+    ],
   },
   {
     id: "demo-5",
@@ -456,6 +487,11 @@ export const DEMO_LECTURES: Lecture[] = [
     dailyQuizzes: [],
     needsReview: true,
     lastReviewed: "2025-11-20",
+    questionsAnswered: 5,
+    identifiedSkills: [
+      { name: "Systems Design", description: "Creating modular, extensible architectures for complex applications", category: "technical", relevantCareers: ["Systems Architect", "Staff Engineer", "Technical Director"], proficiencyLevel: "developing" },
+      { name: "Code Organization", description: "Designing components that can be repurposed across different contexts", category: "technical", relevantCareers: ["Platform Engineer", "Library Developer", "Framework Author"], proficiencyLevel: "developing" },
+    ],
   },
   {
     id: "demo-6",
@@ -469,6 +505,11 @@ export const DEMO_LECTURES: Lecture[] = [
     dailyQuizzes: [],
     needsReview: true,
     lastReviewed: "2025-11-25",
+    questionsAnswered: 5,
+    identifiedSkills: [
+      { name: "Data Organization", description: "Understanding how data can be structured for efficient access", category: "technical", relevantCareers: ["Backend Developer", "Systems Engineer", "Database Developer"], proficiencyLevel: "developing" },
+      { name: "Algorithmic Thinking", description: "Selecting appropriate data structures for different use cases", category: "cognitive", relevantCareers: ["Software Engineer", "Technical Interviewer", "CS Educator"], proficiencyLevel: "developing" },
+    ],
   },
   {
     id: "demo-7",
@@ -482,6 +523,11 @@ export const DEMO_LECTURES: Lecture[] = [
     dailyQuizzes: [],
     needsReview: false,
     lastReviewed: "2025-11-28",
+    questionsAnswered: 5,
+    identifiedSkills: [
+      { name: "Critical Analysis", description: "Evaluating trade-offs and making informed technical decisions", category: "cognitive", relevantCareers: ["Performance Engineer", "Tech Lead", "Senior Software Engineer"], proficiencyLevel: "intermediate" },
+      { name: "Optimization", description: "Identifying bottlenecks and improving system performance", category: "technical", relevantCareers: ["Performance Engineer", "Backend Developer", "DevOps Engineer"], proficiencyLevel: "intermediate" },
+    ],
   },
 ];
 

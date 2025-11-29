@@ -1,13 +1,14 @@
-import { TrendingUp, Award, ArrowRight, Zap, Target, Trophy } from "lucide-react";
+import { TrendingUp, Award, ArrowRight, Zap, Target, Trophy, Briefcase, Brain, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getPerformanceMessage } from "@/lib/game-utils";
-import type { QuizResult, Achievement } from "@shared/schema";
+import type { QuizResult, Achievement, TransferableSkill } from "@shared/schema";
 
 interface QuizResultsProps {
   result: QuizResult;
   newAchievements: Achievement[];
+  skills?: TransferableSkill[];
   onContinue: () => void;
   isDaily?: boolean;
   previousScore?: number;
@@ -16,6 +17,7 @@ interface QuizResultsProps {
 export function QuizResults({
   result,
   newAchievements,
+  skills = [],
   onContinue,
   isDaily = false,
   previousScore,
@@ -33,7 +35,7 @@ export function QuizResults({
   return (
     <div className="min-h-screen">
       <div className="max-w-md mx-auto px-6 py-16 animate-fade-in">
-        <div className="text-center mb-10">
+        <div className="text-center mb-10" role="status" aria-live="polite">
           <h1 className="font-serif text-display-sm tracking-tight mb-3">
             {isDaily ? "Daily Quiz Complete" : "Quiz Complete"}
           </h1>
@@ -43,8 +45,8 @@ export function QuizResults({
         </div>
 
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="card-hover">
+          <div className="grid grid-cols-2 gap-4" role="group" aria-label="Quiz results summary">
+            <Card className="card-hover" aria-label={`${result.score} out of ${result.total} correct answers`}>
               <CardContent className="p-6 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Target className="h-5 w-5 text-primary" aria-hidden="true" />
@@ -56,7 +58,7 @@ export function QuizResults({
               </CardContent>
             </Card>
             
-            <Card className="card-hover">
+            <Card className="card-hover" aria-label={`${result.accuracyPercent} percent accuracy`}>
               <CardContent className="p-6 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Award className={`h-5 w-5 ${
@@ -81,7 +83,7 @@ export function QuizResults({
             </Card>
           </div>
 
-          <Card className="border-gold/30 bg-gold/5 gold-glow">
+          <Card className="border-gold/30 bg-gold/5 gold-glow" role="status" aria-label={`${result.xpEarned} experience points earned`}>
             <CardContent className="p-6 text-center">
               <div className="flex items-center justify-center gap-2 text-gold">
                 <Zap className="h-6 w-6" aria-hidden="true" />
@@ -105,14 +107,15 @@ export function QuizResults({
           )}
 
           {result.incorrectTopics.length > 0 && (
-            <div className="space-y-3">
-              <p className="font-medium">Topics to review:</p>
-              <div className="flex flex-wrap gap-2">
+            <div className="space-y-3" role="region" aria-label="Topics to review">
+              <h2 className="font-medium">Topics to review:</h2>
+              <div className="flex flex-wrap gap-2" role="list">
                 {result.incorrectTopics.map((topic, i) => (
                   <Badge 
                     key={i} 
                     variant="secondary"
                     className="font-normal px-3 py-1"
+                    role="listitem"
                   >
                     {topic}
                   </Badge>
@@ -121,13 +124,50 @@ export function QuizResults({
             </div>
           )}
 
-          {newAchievements.length > 0 && (
-            <Card className="border-gold/30 bg-gold/5">
+          {skills.length > 0 && (
+            <Card className="border-primary/20 bg-primary/5" data-testid="card-skills-developing" role="region" aria-label="Skills you're developing">
               <CardContent className="p-5">
-                <p className="font-medium mb-4 flex items-center gap-2">
+                <h2 className="font-medium mb-4 flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-primary" aria-hidden="true" />
+                  Skills You're Developing
+                </h2>
+                <div className="space-y-4">
+                  {skills.slice(0, 4).map((skill, index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
+                          <Brain className="h-4 w-4 text-primary" aria-hidden="true" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm" data-testid={`text-skill-name-${index}`}>{skill.name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{skill.description}</p>
+                        </div>
+                      </div>
+                      <div className="pl-11">
+                        <div className="flex items-center gap-1.5 flex-wrap" data-testid={`text-skill-careers-${index}`}>
+                          <Briefcase className="h-3 w-3 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                          <span className="text-xs text-muted-foreground">Careers:</span>
+                          {skill.relevantCareers.slice(0, 3).map((career, i) => (
+                            <Badge key={i} variant="outline" className="text-xs py-0 px-1.5 font-normal">
+                              {career}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {newAchievements.length > 0 && (
+            <Card className="border-gold/30 bg-gold/5" role="region" aria-label="New achievements unlocked">
+              <CardContent className="p-5">
+                <h2 className="font-medium mb-4 flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-gold" aria-hidden="true" />
                   New Achievements Unlocked
-                </p>
+                </h2>
                 <div className="space-y-3">
                   {newAchievements.map((achievement) => (
                     <div 

@@ -125,6 +125,14 @@ const addLectureSchema = z.object({
   lastReviewed: z.string().optional(),
 });
 
+const transferableSkillSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  category: z.enum(["cognitive", "technical", "communication", "interpersonal", "organizational"]),
+  relevantCareers: z.array(z.string()),
+  proficiencyLevel: z.enum(["developing", "intermediate", "proficient"]),
+});
+
 const updateLectureSchema = z.object({
   title: z.string().optional(),
   reviewScore: z.number().optional(),
@@ -133,6 +141,8 @@ const updateLectureSchema = z.object({
   confidenceRating: z.number().optional(),
   needsReview: z.boolean().optional(),
   lastReviewed: z.string().optional(),
+  identifiedSkills: z.array(transferableSkillSchema).optional(),
+  questionsAnswered: z.number().optional(),
 });
 
 function cleanJsonResponse(text: string): string {
@@ -542,29 +552,42 @@ export async function registerRoutes(
 
       const { content, title } = parsed.data;
 
-      const prompt = `Generate exactly 5 multiple-choice questions based on this lecture content: 
+      const prompt = `Analyze this lecture content and generate a quiz with transferable skills identification.
 
+LECTURE CONTENT:
 ${content}
 
 Return ONLY valid JSON in this exact format:
-[
-  {
-    "question": "string",
-    "options": ["string", "string", "string", "string"],
-    "correct": number (0-3),
-    "explanation": "string",
-    "topic": "string (specific concept being tested, e.g. 'TCP/IP Protocol Stack', 'Binary Search Algorithm', 'Inheritance in OOP')"
-  }
-]
+{
+  "questions": [
+    {
+      "question": "string",
+      "options": ["string", "string", "string", "string"],
+      "correct": number (0-3),
+      "explanation": "string",
+      "topic": "string (specific concept being tested)"
+    }
+  ],
+  "skills": [
+    {
+      "name": "string (e.g. 'Analytical Thinking', 'Problem Solving', 'Systems Design')",
+      "description": "string (1 sentence explaining how this lecture develops this skill)",
+      "category": "cognitive|technical|communication|interpersonal|organizational",
+      "relevantCareers": ["string", "string", "string"]
+    }
+  ]
+}
 
-Important:
+Requirements:
 - Generate exactly 5 questions
 - Each question must have exactly 4 options
 - "correct" must be an index from 0 to 3
 - Questions should test understanding, not just memorization
-- Explanations should be helpful and supportive
-- The "topic" field must be a specific, descriptive concept name from the lecture (not generic words like "Loop" or "Variable")
-- DO NOT include any text outside the JSON array`;
+- The "topic" field must be a specific, descriptive concept name (not generic words)
+- Identify 3-5 transferable skills that students develop by mastering this content
+- Skills should be career-relevant (e.g., "Critical Analysis", "Data Interpretation", "Logical Reasoning", "Technical Communication")
+- Map each skill to 2-3 relevant career paths
+- DO NOT include any text outside the JSON object`;
 
       const message = await anthropic.messages.create({
         model: DEFAULT_MODEL,
@@ -578,9 +601,9 @@ Important:
       
       const cleanedResponse = cleanJsonResponse(responseText);
       
-      let questions;
+      let quizResponse;
       try {
-        questions = JSON.parse(cleanedResponse);
+        quizResponse = JSON.parse(cleanedResponse);
       } catch (parseError) {
         console.error("Failed to parse quiz response:", cleanedResponse);
         return res.status(500).json({ 
@@ -588,6 +611,10 @@ Important:
           details: "Invalid JSON response from AI"
         });
       }
+
+      // Handle both old array format and new object format
+      const questions = Array.isArray(quizResponse) ? quizResponse : quizResponse.questions;
+      const skills = Array.isArray(quizResponse) ? [] : (quizResponse.skills || []);
 
       if (!Array.isArray(questions) || questions.length === 0) {
         return res.status(500).json({ 
@@ -607,8 +634,21 @@ Important:
         topic: String(q.topic || "General Concept"),
       }));
 
+      const validatedSkills = skills.map((s: any) => ({
+        name: String(s.name || "General Skill"),
+        description: String(s.description || "Developed through this lecture"),
+        category: ["cognitive", "technical", "communication", "interpersonal", "organizational"].includes(s.category) 
+          ? s.category 
+          : "cognitive",
+        relevantCareers: Array.isArray(s.relevantCareers) 
+          ? s.relevantCareers.map(String).slice(0, 5)
+          : ["Various Industries"],
+        proficiencyLevel: "developing" as const,
+      }));
+
       res.json({ 
         questions: validatedQuestions,
+        skills: validatedSkills,
         title: title || "Lecture Review"
       });
 
@@ -1207,6 +1247,70 @@ Important:
     } catch (error: any) {
       console.error("Error fetching weak topics:", error);
       res.status(500).json({ error: "Failed to fetch weak topics" });
+    }
+  });
+
+  app.get("/api/skills", (req, res) => {
+    try {
+      const lectures = storage.getLectures();
+      
+      const skillsMap = new Map<string, {
+        name: string;
+        description: string;
+        category: "cognitive" | "technical" | "communication" | "interpersonal" | "organizational";
+        relevantCareers: string[];
+        highestProficiency: "developing" | "intermediate" | "proficient";
+        occurrenceCount: number;
+      }>();
+      
+      const proficiencyOrder = { developing: 0, intermediate: 1, proficient: 2 };
+      
+      lectures.forEach(lecture => {
+        if (lecture.identifiedSkills && Array.isArray(lecture.identifiedSkills)) {
+          lecture.identifiedSkills.forEach(skill => {
+            const existing = skillsMap.get(skill.name);
+            
+            if (existing) {
+              existing.occurrenceCount += 1;
+              if (proficiencyOrder[skill.proficiencyLevel] > proficiencyOrder[existing.highestProficiency]) {
+                existing.highestProficiency = skill.proficiencyLevel;
+              }
+              skill.relevantCareers.forEach(career => {
+                if (!existing.relevantCareers.includes(career)) {
+                  existing.relevantCareers.push(career);
+                }
+              });
+            } else {
+              skillsMap.set(skill.name, {
+                name: skill.name,
+                description: skill.description,
+                category: skill.category,
+                relevantCareers: [...skill.relevantCareers],
+                highestProficiency: skill.proficiencyLevel,
+                occurrenceCount: 1,
+              });
+            }
+          });
+        }
+      });
+      
+      const aggregatedSkills = Array.from(skillsMap.values())
+        .sort((a, b) => {
+          const profDiff = proficiencyOrder[b.highestProficiency] - proficiencyOrder[a.highestProficiency];
+          if (profDiff !== 0) return profDiff;
+          return b.occurrenceCount - a.occurrenceCount;
+        });
+      
+      res.json({
+        skills: aggregatedSkills,
+        totalSkills: aggregatedSkills.length,
+        proficientCount: aggregatedSkills.filter(s => s.highestProficiency === "proficient").length,
+        intermediateCount: aggregatedSkills.filter(s => s.highestProficiency === "intermediate").length,
+        developingCount: aggregatedSkills.filter(s => s.highestProficiency === "developing").length,
+      });
+    } catch (error: any) {
+      console.error("Error fetching skills:", error);
+      res.status(500).json({ error: "Failed to fetch skills" });
     }
   });
 

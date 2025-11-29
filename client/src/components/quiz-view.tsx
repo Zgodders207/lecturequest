@@ -120,9 +120,13 @@ export function QuizView({
             <span className="text-muted-foreground">
               {isDaily ? "Daily Quiz" : lectureTitle}
             </span>
-            <div className="flex items-center gap-2 text-gold font-medium relative">
+            <div 
+              className="flex items-center gap-2 text-gold font-medium relative"
+              role="status"
+              aria-label={`${xpEarned} XP earned`}
+            >
               <Zap className="h-4 w-4" aria-hidden="true" />
-              <span className="tabular-nums">{xpEarned} XP</span>
+              <span className="tabular-nums" aria-hidden="true">{xpEarned} XP</span>
               {floatingXP && (
                 <span
                   key={floatingXP.id}
@@ -212,7 +216,11 @@ export function QuizView({
           </div>
 
           {showFeedback && (
-            <Card className={`rounded-xl ${selectedAnswer === currentQuestion.correct ? "border-primary/30 bg-primary/5" : ""}`}>
+            <Card 
+              className={`rounded-xl ${selectedAnswer === currentQuestion.correct ? "border-primary/30 bg-primary/5" : ""}`}
+              role="status"
+              aria-live="polite"
+            >
               <CardContent className="p-5">
                 <div className="flex items-start gap-4">
                   <div className={`flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 ${

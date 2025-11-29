@@ -22,7 +22,8 @@ import type {
   Lecture, 
   Question, 
   QuizResult, 
-  Achievement 
+  Achievement,
+  TransferableSkill 
 } from "@shared/schema";
 import { INITIAL_USER_PROFILE } from "@shared/schema";
 
@@ -45,6 +46,7 @@ export default function Home() {
   const [isDailyQuiz, setIsDailyQuiz] = useState(false);
   const [dailyQuizPlanId, setDailyQuizPlanId] = useState<string | null>(null);
   const [dailyQuizTopics, setDailyQuizTopics] = useState<{ topic: string; lectureTitle: string; reason: string }[]>([]);
+  const [currentSkills, setCurrentSkills] = useState<TransferableSkill[]>([]);
 
   const { data: userProfile = INITIAL_USER_PROFILE } = useQuery<UserProfile>({
     queryKey: ["/api/profile"],
@@ -102,6 +104,7 @@ export default function Home() {
     },
     onSuccess: (data) => {
       setCurrentQuiz(data.questions);
+      setCurrentSkills(data.skills || []);
       setCurrentView("quiz");
     },
     onError: () => {
@@ -354,15 +357,30 @@ export default function Home() {
     const confidenceXP = rating * 5;
 
     if (currentLectureId) {
+      const accuracy = quizResult?.accuracyPercent || 0;
+      let calculatedProficiency: "developing" | "intermediate" | "proficient" = "developing";
+      if (accuracy >= 85) {
+        calculatedProficiency = "proficient";
+      } else if (accuracy >= 60) {
+        calculatedProficiency = "intermediate";
+      }
+
+      const skillsWithProficiency = currentSkills.map(skill => ({
+        ...skill,
+        proficiencyLevel: calculatedProficiency,
+      }));
+
       updateLectureMutation.mutate({
         id: currentLectureId,
         data: {
-          reviewScore: quizResult?.accuracyPercent || 0,
+          reviewScore: accuracy,
           xpEarned: (quizResult?.xpEarned || 0) + confidenceXP,
           incorrectTopics: weakTopics.slice(),
           confidenceRating: rating,
           needsReview: false,
           lastReviewed: new Date().toISOString(),
+          identifiedSkills: skillsWithProficiency,
+          questionsAnswered: currentQuiz.length,
         },
       });
     }
@@ -408,7 +426,8 @@ export default function Home() {
     setIsDailyQuiz(false);
     setDailyQuizPlanId(null);
     setDailyQuizTopics([]);
-  }, [currentLectureId, quizResult, weakTopics, userProfile, lectureHistory, perfectScoresCount, updateLectureMutation, updateProfileMutation]);
+    setCurrentSkills([]);
+  }, [currentLectureId, quizResult, weakTopics, userProfile, lectureHistory, perfectScoresCount, updateLectureMutation, updateProfileMutation, currentSkills]);
 
   const handleUseHint = useCallback(() => {
     const updatedPowerUps = {
@@ -464,6 +483,7 @@ export default function Home() {
           <QuizResults
             result={quizResult}
             newAchievements={newAchievements}
+            skills={currentSkills}
             onContinue={() => setCurrentView("confidence")}
             isDaily={false}
           />
@@ -487,8 +507,14 @@ export default function Home() {
 
       case "loading":
         return (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6" data-testid="view-loading">
-            <div className="relative">
+          <div 
+            className="flex flex-col items-center justify-center min-h-[60vh] gap-6" 
+            data-testid="view-loading"
+            role="status"
+            aria-live="polite"
+            aria-label="Generating quiz"
+          >
+            <div className="relative" aria-hidden="true">
               <div className="w-16 h-16 border-4 border-primary/20 rounded-full" />
               <div className="absolute top-0 left-0 w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
