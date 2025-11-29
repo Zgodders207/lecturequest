@@ -16,6 +16,7 @@ export interface IStorage {
   getLecture(id: string): Lecture | undefined;
   addLecture(lecture: Omit<Lecture, "id">): Lecture;
   updateLecture(id: string, updates: Partial<Lecture>): Lecture | undefined;
+  deleteLecture(id: string): boolean;
   
   getWeakTopics(): string[];
 }
@@ -123,6 +124,15 @@ export class MemStorage implements IStorage {
     const clonedUpdates = deepClone(updates);
     this.lectures[index] = { ...this.lectures[index], ...clonedUpdates };
     return deepClone(this.lectures[index]);
+  }
+
+  deleteLecture(id: string): boolean {
+    const index = this.lectures.findIndex(l => l.id === id);
+    if (index === -1) return false;
+    
+    this.lectures.splice(index, 1);
+    this.userProfile.totalLectures = this.lectures.length;
+    return true;
   }
 
   getWeakTopics(): string[] {

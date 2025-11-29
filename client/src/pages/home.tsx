@@ -73,6 +73,16 @@ export default function Home() {
     },
   });
 
+  const deleteLectureMutation = useMutation({
+    mutationFn: async (lectureId: string) => {
+      const response = await apiRequest("DELETE", `/api/lectures/${lectureId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
+    },
+  });
+
   const loadDemoMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/profile/demo", {});
@@ -431,6 +441,7 @@ export default function Home() {
             onStartDailyQuiz={() => generateDailyQuizMutation.mutate()}
             onLoadDemo={handleLoadDemo}
             onViewAchievements={() => setCurrentView("achievements")}
+            onDeleteLecture={(id) => deleteLectureMutation.mutate(id)}
           />
         );
     }

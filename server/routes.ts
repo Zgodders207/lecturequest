@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { storage } from "./storage";
+import * as pdfParse from "pdf-parse";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -295,6 +296,83 @@ Important:
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  app.post("/api/parse-file", async (req, res) => {
+    try {
+      const { fileData, fileType, fileName } = req.body;
+      
+      if (!fileData || !fileType) {
+        return res.status(400).json({ error: "Missing file data or type" });
+      }
+
+      let extractedText = "";
+      let title = fileName?.replace(/\.[^/.]+$/, "") || "Untitled";
+
+      if (fileType === "application/pdf" || fileName?.endsWith(".pdf")) {
+        try {
+          const buffer = Buffer.from(fileData, "base64");
+          const pdfData = await (pdfParse as any).default(buffer);
+          extractedText = pdfData.text;
+          if (!extractedText || extractedText.trim().length < 50) {
+            return res.status(400).json({ 
+              error: "Could not extract enough text from PDF. The PDF might be image-based or encrypted. Please try copying the text manually." 
+            });
+          }
+        } catch (pdfError: any) {
+          console.error("PDF parsing error:", pdfError);
+          return res.status(400).json({ 
+            error: "Failed to parse PDF file. Please ensure it's a valid text-based PDF or try copying the content manually." 
+          });
+        }
+      } else if (fileType === "text/html" || fileName?.endsWith(".html") || fileName?.endsWith(".htm")) {
+        try {
+          const htmlContent = Buffer.from(fileData, "base64").toString("utf-8");
+          extractedText = htmlContent
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&nbsp;/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\s+/g, " ")
+            .trim();
+          
+          const titleMatch = htmlContent.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (titleMatch && titleMatch[1]) {
+            title = titleMatch[1].trim();
+          }
+        } catch (htmlError: any) {
+          console.error("HTML parsing error:", htmlError);
+          return res.status(400).json({ error: "Failed to parse HTML file" });
+        }
+      } else if (fileType === "text/plain" || fileName?.endsWith(".txt")) {
+        extractedText = Buffer.from(fileData, "base64").toString("utf-8");
+      } else {
+        return res.status(400).json({ 
+          error: "Unsupported file type. Please upload PDF, HTML, or TXT files." 
+        });
+      }
+
+      if (!extractedText || extractedText.trim().length < 50) {
+        return res.status(400).json({ 
+          error: "Extracted text is too short (minimum 50 characters required)" 
+        });
+      }
+
+      res.json({ 
+        text: extractedText.trim(),
+        title,
+        characterCount: extractedText.length
+      });
+
+    } catch (error: any) {
+      console.error("File parsing error:", error);
+      res.status(500).json({ error: "Failed to parse file" });
+    }
+  });
+
   app.get("/api/profile", (req, res) => {
     try {
       const profile = storage.getUserProfile();
@@ -379,6 +457,20 @@ Important:
     } catch (error: any) {
       console.error("Error adding lecture:", error);
       res.status(500).json({ error: "Failed to add lecture" });
+    }
+  });
+
+  app.delete("/api/lectures/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = storage.deleteLecture(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Lecture not found" });
+      }
+      res.json({ success: true, message: "Lecture deleted" });
+    } catch (error: any) {
+      console.error("Error deleting lecture:", error);
+      res.status(500).json({ error: "Failed to delete lecture" });
     }
   });
 

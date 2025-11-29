@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, FileText, AlertCircle, Sparkles, ArrowLeft } from "lucide-react";
+import { Upload, FileText, AlertCircle, Sparkles, ArrowLeft, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { apiRequest } from "@/lib/queryClient";
 
 interface UploadViewProps {
   onUpload: (content: string, title: string) => void;
@@ -16,9 +18,11 @@ interface UploadViewProps {
 export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewProps) {
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
-  const [showPasteArea, setShowPasteArea] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -31,23 +35,71 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
     }
   }, []);
 
-  const processFile = useCallback((file: File) => {
+  const processFile = useCallback(async (file: File) => {
+    setParseError(null);
+    setFileName(file.name);
+    setFileType(file.type);
+    
+    const supportedTypes = [
+      "text/plain",
+      "application/pdf", 
+      "text/html"
+    ];
+    
+    const isSupported = supportedTypes.includes(file.type) || 
+      file.name.endsWith(".txt") ||
+      file.name.endsWith(".pdf") ||
+      file.name.endsWith(".html") ||
+      file.name.endsWith(".htm");
+
+    if (!isSupported) {
+      setParseError("Unsupported file type. Please upload PDF, HTML, or TXT files.");
+      return;
+    }
+
     if (file.type === "text/plain" || file.name.endsWith(".txt")) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
         setContent(text);
-        setFileName(file.name);
         const extractedTitle = text.split("\n")[0]?.slice(0, 100) || file.name.replace(".txt", "");
         setTitle(extractedTitle);
       };
       reader.readAsText(file);
-    } else if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
-      setShowPasteArea(true);
-      setFileName(file.name);
-      setTitle(file.name.replace(".pdf", ""));
     } else {
-      setShowPasteArea(true);
+      setIsParsing(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const base64 = (e.target?.result as string).split(",")[1];
+            
+            const response = await apiRequest("POST", "/api/parse-file", {
+              fileData: base64,
+              fileType: file.type,
+              fileName: file.name
+            });
+            
+            const result = await response.json();
+            
+            if (result.error) {
+              setParseError(result.error);
+            } else {
+              setContent(result.text);
+              setTitle(result.title || file.name.replace(/\.[^/.]+$/, ""));
+            }
+          } catch (err: any) {
+            console.error("Parse error:", err);
+            setParseError(err.message || "Failed to parse file. Please try again or paste text manually.");
+          } finally {
+            setIsParsing(false);
+          }
+        };
+        reader.readAsDataURL(file);
+      } catch (err: any) {
+        setIsParsing(false);
+        setParseError("Failed to read file. Please try again.");
+      }
     }
   }, []);
 
@@ -73,7 +125,26 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
     }
   };
 
+  const clearFile = () => {
+    setFileName(null);
+    setFileType(null);
+    setContent("");
+    setTitle("");
+    setParseError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const canSubmit = content.trim().length >= 50 && title.trim().length > 0;
+
+  const getFileTypeLabel = () => {
+    if (!fileName) return null;
+    if (fileName.endsWith(".pdf")) return "PDF";
+    if (fileName.endsWith(".html") || fileName.endsWith(".htm")) return "HTML";
+    if (fileName.endsWith(".txt")) return "TXT";
+    return "File";
+  };
 
   return (
     <div className="container max-w-2xl mx-auto px-4 py-8">
@@ -104,7 +175,9 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
             className={`relative rounded-lg border-2 border-dashed transition-colors ${
               dragActive
                 ? "border-primary bg-primary/5"
-                : "border-border hover:border-primary/50"
+                : fileName 
+                  ? "border-success bg-success/5"
+                  : "border-border hover:border-primary/50"
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -122,7 +195,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.pdf,text/plain,application/pdf"
+              accept=".txt,.pdf,.html,.htm,text/plain,application/pdf,text/html"
               onChange={handleFileInput}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               aria-label="File input"
@@ -130,33 +203,73 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
             />
             
             <div className="flex flex-col items-center justify-center py-12 px-4">
-              <div className="mb-4 rounded-full bg-muted p-4">
-                <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-              </div>
-              <p className="text-lg font-medium text-center">
-                {fileName ? (
-                  <span className="text-primary">{fileName}</span>
-                ) : (
-                  "Drag & drop your file here"
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground mt-4">
-                Supported: .txt files (for PDFs, paste text below)
-              </p>
+              {isParsing ? (
+                <>
+                  <div className="mb-4 rounded-full bg-primary/20 p-4">
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" aria-hidden="true" />
+                  </div>
+                  <p className="text-lg font-medium text-center">
+                    Processing {fileName}...
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Extracting text content
+                  </p>
+                </>
+              ) : fileName && content ? (
+                <>
+                  <div className="mb-4 rounded-full bg-success/20 p-4">
+                    <Check className="h-8 w-8 text-success" aria-hidden="true" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg font-medium text-success">{fileName}</span>
+                    <Badge variant="secondary">{getFileTypeLabel()}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {content.length.toLocaleString()} characters extracted
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearFile();
+                    }}
+                    className="mt-2"
+                    data-testid="button-clear-file"
+                  >
+                    Upload different file
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="mb-4 rounded-full bg-muted p-4">
+                    <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                  </div>
+                  <p className="text-lg font-medium text-center">
+                    Drag & drop your file here
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    or click to browse
+                  </p>
+                  <div className="flex gap-2 mt-4">
+                    <Badge variant="outline">PDF</Badge>
+                    <Badge variant="outline">HTML</Badge>
+                    <Badge variant="outline">TXT</Badge>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          {(showPasteArea || fileName?.endsWith(".pdf")) && (
-            <div className="p-4 rounded-lg bg-gold/10 border border-gold/30">
+          {parseError && (
+            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-gold flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="font-medium text-gold">PDF Detected</p>
-                  <p className="text-sm text-muted-foreground">
-                    Please copy and paste the text content from your PDF below, or convert it to a .txt file.
+                  <p className="font-medium text-destructive">File Processing Error</p>
+                  <p className="text-sm text-muted-foreground">{parseError}</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    You can also paste the content manually in the text area below.
                   </p>
                 </div>
               </div>
@@ -179,7 +292,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
               <Label htmlFor="lecture-content">
                 Lecture Content
                 <span className="text-muted-foreground text-xs ml-2">
-                  ({content.length} characters, min 50)
+                  ({content.length.toLocaleString()} characters, min 50)
                 </span>
               </Label>
               <Textarea
@@ -207,9 +320,9 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
 
           <Button
             onClick={handleSubmit}
-            disabled={!canSubmit || isLoading}
+            disabled={!canSubmit || isLoading || isParsing}
             className={`w-full h-12 text-lg font-semibold ${
-              canSubmit && !isLoading ? "animate-pulse-glow" : ""
+              canSubmit && !isLoading && !isParsing ? "animate-pulse-glow" : ""
             }`}
             data-testid="button-generate-quiz"
           >

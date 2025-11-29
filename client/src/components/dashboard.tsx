@@ -1,6 +1,6 @@
 import { 
   Zap, Trophy, Target, Flame, BookOpen, TrendingUp, 
-  Clock, Award, Crown, Play, Upload, Sparkles, ChevronRight
+  Clock, Award, Crown, Play, Upload, Sparkles, ChevronRight, FileText, Trash2, Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,6 +17,8 @@ interface DashboardProps {
   onStartDailyQuiz: () => void;
   onLoadDemo: () => void;
   onViewAchievements: () => void;
+  onDeleteLecture?: (id: string) => void;
+  onViewLecture?: (id: string) => void;
 }
 
 export function Dashboard({
@@ -26,6 +28,8 @@ export function Dashboard({
   onStartDailyQuiz,
   onLoadDemo,
   onViewAchievements,
+  onDeleteLecture,
+  onViewLecture,
 }: DashboardProps) {
   const currentLevelXP = Math.pow(userProfile.level, 2) * 100;
   const nextLevelXP = xpForNextLevel(userProfile.level);
@@ -45,42 +49,7 @@ export function Dashboard({
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
-      <section className="text-center space-y-4" aria-label="Level progress">
-        <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/30">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-white font-bold text-lg shadow-lg">
-            {userProfile.level}
-          </div>
-          <div className="text-left">
-            <p className="text-sm text-muted-foreground">Level {userProfile.level}</p>
-            <p className="font-semibold text-lg gradient-text">
-              {getLevelTitle(userProfile.level)}
-            </p>
-          </div>
-        </div>
-
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-gold font-semibold flex items-center gap-1">
-              <Zap className="h-4 w-4" aria-hidden="true" />
-              {userProfile.totalXP.toLocaleString()} XP
-            </span>
-            <span className="text-muted-foreground">
-              {xpToNext.toLocaleString()} XP to Level {userProfile.level + 1}
-            </span>
-          </div>
-          <div className="relative h-4 overflow-hidden rounded-full bg-muted">
-            <div 
-              className="h-full xp-gradient-animated rounded-full transition-all duration-1000"
-              style={{ width: `${progressPercent}%` }}
-              role="progressbar"
-              aria-valuenow={progressPercent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`XP progress: ${Math.round(progressPercent)}%`}
-            />
-          </div>
-        </div>
-
+      <section className="text-center space-y-4" aria-label="Welcome">
         {userProfile.currentStreak > 0 && (
           <div className="flex items-center justify-center gap-2 text-lg">
             <Flame className="h-6 w-6 text-gold animate-pulse" aria-hidden="true" />
@@ -311,46 +280,109 @@ export function Dashboard({
         </Card>
       </section>
 
-      {lectureHistory.length > 0 && (
-        <section>
-          <Card>
-            <CardHeader>
+      <section>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
               <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                Recent Activity
+                <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
+                Study Materials
               </CardTitle>
-            </CardHeader>
-            <CardContent>
+              <CardDescription>
+                {lectureHistory.length} uploaded lecture{lectureHistory.length !== 1 ? 's' : ''}
+              </CardDescription>
+            </div>
+            <Button
+              onClick={onStartUpload}
+              size="sm"
+              className="gap-1"
+              data-testid="button-upload-materials"
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Add New
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {lectureHistory.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <FileText className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                </div>
+                <p className="text-muted-foreground mb-4">
+                  No study materials yet. Upload your first lecture!
+                </p>
+                <Button
+                  onClick={onStartUpload}
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-upload-first"
+                >
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  Upload Lecture
+                </Button>
+              </div>
+            ) : (
               <div className="space-y-3">
-                {lectureHistory.slice(-5).reverse().map((lecture) => (
+                {lectureHistory.map((lecture) => (
                   <div 
                     key={lecture.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover-elevate"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20 flex-shrink-0">
                         <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
                       </div>
-                      <div>
-                        <p className="font-medium">{lecture.title}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{lecture.title}</p>
                         <p className="text-sm text-muted-foreground">
                           {formatDate(lecture.date)} · Score: {lecture.reviewScore}%
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gold flex items-center gap-1">
-                        <Zap className="h-4 w-4" aria-hidden="true" />
-                        +{lecture.xpEarned} XP
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <p className="font-semibold text-gold flex items-center gap-1 text-sm">
+                        <Zap className="h-3 w-3" aria-hidden="true" />
+                        +{lecture.xpEarned}
                       </p>
+                      {onViewLecture && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onViewLecture(lecture.id)}
+                              data-testid={`button-view-lecture-${lecture.id}`}
+                            >
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>View lecture</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {onDeleteLecture && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onDeleteLecture(lecture.id)}
+                              className="text-destructive hover:text-destructive"
+                              data-testid={`button-delete-lecture-${lecture.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete lecture</TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       <section className="flex flex-col sm:flex-row gap-4 justify-center">
         {hasDailyQuizAvailable && (
