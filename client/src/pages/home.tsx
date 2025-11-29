@@ -398,6 +398,8 @@ export default function Home() {
     setCurrentQuiz([]);
     setWeakTopics([]);
     setCurrentLectureId(null);
+    setCurrentLectureTitle("");
+    setCurrentLectureContent("");
     setIsDailyQuiz(false);
     setDailyQuizPlanId(null);
     setDailyQuizTopics([]);
