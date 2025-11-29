@@ -109,6 +109,65 @@ function cleanJsonResponse(text: string): string {
     .trim();
 }
 
+function extractTitleFromText(text: string): string | null {
+  const lines = text.split(/[\n\r]+/).map(line => line.trim()).filter(line => line.length > 0);
+  
+  const titleCandidates: string[] = [];
+  
+  for (let i = 0; i < Math.min(20, lines.length); i++) {
+    const line = lines[i];
+    
+    if (line.startsWith("#")) {
+      const title = line.replace(/^#+\s*/, "").trim();
+      if (title.length >= 5 && title.length <= 150) {
+        return title;
+      }
+    }
+    
+    const lowerLine = line.toLowerCase();
+    if (
+      lowerLine.includes("©") ||
+      lowerLine.includes("copyright") ||
+      lowerLine.includes("all rights reserved") ||
+      lowerLine.includes("confidential") ||
+      lowerLine.match(/^\d+$/) ||
+      lowerLine.match(/^page\s+\d+/) ||
+      line.length < 5
+    ) {
+      continue;
+    }
+    
+    if (
+      lowerLine.includes("module") ||
+      lowerLine.includes("chapter") ||
+      lowerLine.includes("lecture") ||
+      lowerLine.includes("introduction") ||
+      lowerLine.includes("unit")
+    ) {
+      if (line.length >= 10 && line.length <= 150) {
+        titleCandidates.unshift(line);
+      }
+    } else if (line.length >= 10 && line.length <= 100) {
+      titleCandidates.push(line);
+    }
+  }
+  
+  if (titleCandidates.length >= 2) {
+    const first = titleCandidates[0];
+    const second = titleCandidates[1];
+    if (first.length + second.length <= 120) {
+      return `${first} - ${second}`.slice(0, 120);
+    }
+    return first.slice(0, 100);
+  }
+  
+  if (titleCandidates.length === 1) {
+    return titleCandidates[0].slice(0, 100);
+  }
+  
+  return null;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -343,9 +402,14 @@ Important:
         try {
           const buffer = Buffer.from(fileData, "base64");
           const pdfData = await parsePdf(buffer);
-          extractedText = pdfData.text || "";
+          const rawText = pdfData.text || "";
           
-          extractedText = extractedText
+          const extractedTitle = extractTitleFromText(rawText);
+          if (extractedTitle) {
+            title = extractedTitle;
+          }
+          
+          extractedText = rawText
             .replace(/\x00/g, "")
             .replace(/[^\x20-\x7E\n\r\t]/g, " ")
             .replace(/\s+/g, " ")

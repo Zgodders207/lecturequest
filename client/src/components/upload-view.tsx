@@ -15,20 +15,59 @@ interface UploadViewProps {
 }
 
 function extractTitleFromContent(content: string): string {
-  const lines = content.split("\n").filter(line => line.trim().length > 0);
+  const lines = content.split(/[\n\r]+/).map(line => line.trim()).filter(line => line.length > 0);
   
-  for (const line of lines.slice(0, 5)) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("#")) {
-      return trimmed.replace(/^#+\s*/, "").slice(0, 100);
+  const titleCandidates: string[] = [];
+  
+  for (let i = 0; i < Math.min(20, lines.length); i++) {
+    const line = lines[i];
+    
+    if (line.startsWith("#")) {
+      const title = line.replace(/^#+\s*/, "").trim();
+      if (title.length >= 5 && title.length <= 150) {
+        return title;
+      }
+    }
+    
+    const lowerLine = line.toLowerCase();
+    if (
+      lowerLine.includes("©") ||
+      lowerLine.includes("copyright") ||
+      lowerLine.includes("all rights reserved") ||
+      lowerLine.includes("confidential") ||
+      /^\d+$/.test(lowerLine) ||
+      /^page\s+\d+/.test(lowerLine) ||
+      line.length < 5
+    ) {
+      continue;
+    }
+    
+    if (
+      lowerLine.includes("module") ||
+      lowerLine.includes("chapter") ||
+      lowerLine.includes("lecture") ||
+      lowerLine.includes("introduction") ||
+      lowerLine.includes("unit")
+    ) {
+      if (line.length >= 10 && line.length <= 150) {
+        titleCandidates.unshift(line);
+      }
+    } else if (line.length >= 10 && line.length <= 100) {
+      titleCandidates.push(line);
     }
   }
   
-  for (const line of lines.slice(0, 3)) {
-    const trimmed = line.trim();
-    if (trimmed.length > 10 && trimmed.length < 150 && !trimmed.includes("\t")) {
-      return trimmed.slice(0, 100);
+  if (titleCandidates.length >= 2) {
+    const first = titleCandidates[0];
+    const second = titleCandidates[1];
+    if (first.length + second.length <= 120) {
+      return `${first} - ${second}`.slice(0, 120);
     }
+    return first.slice(0, 100);
+  }
+  
+  if (titleCandidates.length === 1) {
+    return titleCandidates[0].slice(0, 100);
   }
   
   const firstLine = lines[0]?.trim() || "";
