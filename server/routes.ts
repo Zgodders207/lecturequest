@@ -631,27 +631,162 @@ Important:
     }
   });
 
+  // Get daily quiz status - shows due topics using active recall algorithm
+  app.get("/api/daily-quiz/status", (req, res) => {
+    try {
+      const dueTopics = storage.getDueTopics(10);
+      const currentPlan = storage.getCurrentDailyQuizPlan();
+      const lectures = storage.getLectures();
+      const profile = storage.getUserProfile();
+      
+      // Get topic count from all lectures
+      const allTopics = new Set<string>();
+      lectures.forEach(lecture => {
+        lecture.incorrectTopics.forEach(topic => allTopics.add(topic));
+      });
+      
+      res.json({
+        hasDueTopics: dueTopics.length > 0,
+        dueTopicsCount: dueTopics.length,
+        totalTopicsTracked: allTopics.size,
+        dueTopics: dueTopics.map(t => ({
+          topic: t.topic,
+          lectureTitle: t.lectureTitle,
+          lastScore: t.lastScore,
+          daysSinceReview: Math.floor((new Date().getTime() - new Date(t.lastReviewed).getTime()) / (1000 * 60 * 60 * 24)),
+          streak: t.streak,
+          isOverdue: new Date(t.nextDue) < new Date(),
+        })),
+        currentPlan: currentPlan ? {
+          id: currentPlan.id,
+          topicsCount: currentPlan.topics.length,
+          generatedAt: currentPlan.generatedAt,
+          completed: currentPlan.completed,
+        } : null,
+        weeklyStreak: profile.currentStreak,
+      });
+    } catch (error: any) {
+      console.error("Daily quiz status error:", error);
+      res.status(500).json({ error: "Failed to get daily quiz status" });
+    }
+  });
+
+  // Generate daily quiz using server-side active recall topic selection
   app.post("/api/generate-daily-quiz", async (req, res) => {
     try {
-      const parsed = generateDailyQuizRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ 
-          error: "Invalid request", 
-          details: parsed.error.issues 
+      // Get due topics from spaced repetition algorithm
+      const dueTopics = storage.getDueTopics(8);
+      const lectures = storage.getLectures();
+      const profile = storage.getUserProfile();
+      
+      // If no tracked topics yet, use weak topics from lectures
+      let topicsToReview: { topic: string; lectureId: string; lectureTitle: string; priority: number; reason: "due" | "weak" | "overdue" | "new"; daysSinceReview: number }[] = [];
+      
+      if (dueTopics.length > 0) {
+        // Use spaced repetition algorithm results
+        const today = new Date();
+        topicsToReview = dueTopics.map(t => {
+          const nextDue = new Date(t.nextDue);
+          const daysSinceDue = Math.floor((today.getTime() - nextDue.getTime()) / (1000 * 60 * 60 * 24));
+          const daysSinceReview = Math.floor((today.getTime() - new Date(t.lastReviewed).getTime()) / (1000 * 60 * 60 * 24));
+          
+          let reason: "due" | "weak" | "overdue" | "new" = "due";
+          if (daysSinceDue > 3) reason = "overdue";
+          else if (t.lastScore < 70) reason = "weak";
+          else if (t.reviewCount <= 1) reason = "new";
+          
+          return {
+            topic: t.topic,
+            lectureId: t.lectureId,
+            lectureTitle: t.lectureTitle,
+            priority: t.lastScore < 70 ? 100 - t.lastScore : 50 + daysSinceDue * 5,
+            reason,
+            daysSinceReview,
+          };
+        });
+      } else {
+        // Fallback: Use incorrect topics from lectures for first-time users
+        const weakTopicsSet = new Map<string, { lectureId: string; lectureTitle: string; score: number }>();
+        
+        lectures.forEach(lecture => {
+          lecture.incorrectTopics.forEach(topic => {
+            if (!weakTopicsSet.has(topic) || weakTopicsSet.get(topic)!.score > lecture.reviewScore) {
+              weakTopicsSet.set(topic, {
+                lectureId: lecture.id,
+                lectureTitle: lecture.title,
+                score: lecture.reviewScore,
+              });
+            }
+          });
+        });
+        
+        topicsToReview = Array.from(weakTopicsSet.entries()).map(([topic, data]) => ({
+          topic,
+          lectureId: data.lectureId,
+          lectureTitle: data.lectureTitle,
+          priority: 100 - data.score,
+          reason: "weak" as const,
+          daysSinceReview: 0,
+        }));
+      }
+      
+      if (topicsToReview.length === 0) {
+        return res.status(400).json({
+          error: "No topics to review",
+          message: "Complete some lecture quizzes first to build your review schedule."
         });
       }
+      
+      // Sort by priority and take top topics
+      topicsToReview.sort((a, b) => b.priority - a.priority);
+      const selectedTopics = topicsToReview.slice(0, 5);
+      
+      // Get lecture excerpts for context
+      const lectureExcerpts: { lectureId: string; excerpt: string }[] = [];
+      const seenLectures = new Set<string>();
+      selectedTopics.forEach(t => {
+        if (!seenLectures.has(t.lectureId)) {
+          const lecture = lectures.find(l => l.id === t.lectureId);
+          if (lecture) {
+            lectureExcerpts.push({
+              lectureId: t.lectureId,
+              excerpt: lecture.content.substring(0, 500) + (lecture.content.length > 500 ? "..." : ""),
+            });
+            seenLectures.add(t.lectureId);
+          }
+        }
+      });
+      
+      // Build prompt with active recall focus
+      const topicsList = selectedTopics.map(t => {
+        const reasonText = t.reason === "overdue" ? "(overdue)" :
+                          t.reason === "weak" ? "(needs practice)" :
+                          t.reason === "new" ? "(recently learned)" : "";
+        return `- ${t.topic} from "${t.lectureTitle}" ${reasonText}`;
+      }).join("\n");
+      
+      const excerptContext = lectureExcerpts.map(e => {
+        const lecture = lectures.find(l => l.id === e.lectureId);
+        return `Lecture: ${lecture?.title || "Unknown"}\nContent: ${e.excerpt}`;
+      }).join("\n\n");
 
-      const { weakTopics, previousScore, confidenceLevel } = parsed.data;
+      const prompt = `Generate 4-6 targeted multiple-choice questions using active recall principles for these topics that need review:
 
-      const topicsString = weakTopics.length > 0 
-        ? weakTopics.join(", ") 
-        : "general knowledge concepts";
+${topicsList}
 
-      const prompt = `Generate 3-5 targeted multiple-choice questions focusing on these weak areas: ${topicsString}
+Context from the student's lectures:
+${excerptContext}
 
-Student context:
-- Previous quiz score: ${previousScore}%
-- Confidence level: ${confidenceLevel}/5
+Student Progress:
+- Current streak: ${profile.currentStreak} days
+- Average confidence: ${profile.averageConfidence.toFixed(1)}/5
+
+Active Recall Instructions:
+1. Questions should test RETRIEVAL of knowledge, not recognition
+2. Include questions that require connecting concepts across topics
+3. Use varied question formats (application, analysis, comparison)
+4. Focus on the "why" and "how" not just the "what"
+5. Include some questions that require recalling specific details
 
 Return ONLY valid JSON in this exact format:
 [
@@ -659,18 +794,17 @@ Return ONLY valid JSON in this exact format:
     "question": "string",
     "options": ["string", "string", "string", "string"],
     "correct": number (0-3),
-    "explanation": "string"
+    "explanation": "string",
+    "topic": "string (which topic this tests)"
   }
 ]
 
 Important:
-- Generate 3-5 questions (4 is ideal)
-- Focus specifically on the weak topics mentioned
+- Generate 4-6 questions
 - Each question must have exactly 4 options
 - "correct" must be an index from 0 to 3
-- Make questions progressively challenging
-- Use different question styles (application, analysis, synthesis)
-- Explanations should be encouraging and educational
+- Explanations should reinforce learning and encourage spaced repetition
+- Include the topic field to track which topic each question tests
 - DO NOT include any text outside the JSON array`;
 
       const message = await anthropic.messages.create({
@@ -711,11 +845,34 @@ Important:
           ? q.correct 
           : 0,
         explanation: String(q.explanation || "Keep practicing! You're making progress."),
+        topic: String(q.topic || selectedTopics[index % selectedTopics.length]?.topic || "General"),
       }));
+
+      // Create and store the daily quiz plan
+      const planId = `plan-${Date.now()}`;
+      const plan = storage.setCurrentDailyQuizPlan({
+        id: planId,
+        generatedAt: new Date().toISOString(),
+        topics: selectedTopics,
+        lectureExcerpts,
+        completed: false,
+      });
 
       res.json({ 
         questions: validatedQuestions,
-        focusTopics: weakTopics
+        planId: plan.id,
+        focusTopics: selectedTopics.map(t => ({
+          topic: t.topic,
+          lectureTitle: t.lectureTitle,
+          reason: t.reason,
+          daysSinceReview: t.daysSinceReview,
+        })),
+        spacedRepetitionInfo: {
+          totalDueTopics: dueTopics.length,
+          selectedCount: selectedTopics.length,
+          overdueCount: selectedTopics.filter(t => t.reason === "overdue").length,
+          weakCount: selectedTopics.filter(t => t.reason === "weak").length,
+        }
       });
 
     } catch (error: any) {
@@ -737,6 +894,91 @@ Important:
         error: "Failed to generate daily quiz. Please try again.",
         details: error.message 
       });
+    }
+  });
+
+  // Complete daily quiz and update spaced repetition stats
+  app.post("/api/daily-quiz/complete", (req, res) => {
+    try {
+      const { planId, score, topicScores } = req.body;
+      
+      if (typeof score !== "number" || score < 0 || score > 100) {
+        return res.status(400).json({ error: "Invalid score" });
+      }
+      
+      const currentPlan = storage.getCurrentDailyQuizPlan();
+      if (!currentPlan || currentPlan.id !== planId) {
+        return res.status(400).json({ error: "Invalid or expired quiz plan" });
+      }
+      
+      // Update spaced repetition stats for each topic
+      if (Array.isArray(topicScores)) {
+        topicScores.forEach((ts: { topic: string; correct: boolean; lectureId?: string }) => {
+          const topicScore = ts.correct ? 100 : 0;
+          const topicData = currentPlan.topics.find(t => t.topic === ts.topic);
+          if (topicData) {
+            storage.updateTopicReviewStats(
+              ts.topic,
+              topicData.lectureId,
+              topicData.lectureTitle,
+              topicScore
+            );
+            
+            // Add review event
+            storage.addReviewEvent({
+              topicId: ts.topic,
+              topic: ts.topic,
+              lectureId: topicData.lectureId,
+              date: new Date().toISOString(),
+              score: topicScore,
+              wasCorrect: ts.correct,
+            });
+          }
+        });
+      }
+      
+      // Complete the plan
+      const completedPlan = storage.completeDailyQuizPlan(score);
+      
+      // Update user profile with activity
+      const profile = storage.getUserProfile();
+      const today = new Date().toISOString().split('T')[0];
+      const lastActivity = profile.lastActivityDate;
+      
+      let newStreak = profile.currentStreak;
+      if (lastActivity) {
+        const lastDate = new Date(lastActivity);
+        const todayDate = new Date(today);
+        const daysDiff = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff === 1) {
+          newStreak = profile.currentStreak + 1;
+        } else if (daysDiff > 1) {
+          newStreak = 1;
+        }
+      } else {
+        newStreak = 1;
+      }
+      
+      storage.updateUserProfile({
+        lastActivityDate: today,
+        currentStreak: newStreak,
+        longestStreak: Math.max(profile.longestStreak, newStreak),
+      });
+      
+      res.json({
+        success: true,
+        completedPlan,
+        newStreak,
+        nextReviewSummary: storage.getDueTopics(5).map(t => ({
+          topic: t.topic,
+          nextDue: t.nextDue,
+          interval: t.interval,
+        })),
+      });
+    } catch (error: any) {
+      console.error("Complete daily quiz error:", error);
+      res.status(500).json({ error: "Failed to complete daily quiz" });
     }
   });
 
