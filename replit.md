@@ -19,9 +19,9 @@ Preferred communication style: Simple, everyday language.
 **UI Framework**: Shadcn/ui component library built on Radix UI primitives with Tailwind CSS for styling
 
 **Styling Approach**: 
-- Gaming-inspired dark mode aesthetic with purple-to-blue gradients
-- Card-based layouts with dark backgrounds and bright accent colors
-- Yellow/gold colors for XP and achievements
+- Nature-inspired sage green aesthetic with calming organic tones
+- Color palette based on: #F1F3E0, #D2DCB6, #A1BC98, #778873
+- Card-based layouts with soft sage backgrounds and gold accents for XP/achievements
 - Full design system defined in `design_guidelines.md` and `client/src/index.css`
 
 **State Management**: Local React state with no global state library. Application state managed in `client/src/pages/home.tsx` includes:
