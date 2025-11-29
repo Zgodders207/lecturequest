@@ -2,50 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE - Gaming inspired theme */
+/* LIGHT MODE - Nature-inspired sage green theme */
 :root {
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
-  --background: 250 15% 95%;
-  --foreground: 250 25% 10%;
-  --border: 250 15% 85%;
-  --card: 250 15% 98%;
-  --card-foreground: 250 25% 10%;
-  --card-border: 250 15% 90%;
-  --sidebar: 250 20% 92%;
-  --sidebar-foreground: 250 25% 10%;
-  --sidebar-border: 250 15% 88%;
-  --sidebar-primary: 262 83% 58%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 250 15% 88%;
-  --sidebar-accent-foreground: 250 25% 10%;
-  --sidebar-ring: 262 83% 58%;
-  --popover: 250 15% 94%;
-  --popover-foreground: 250 25% 10%;
-  --popover-border: 250 15% 88%;
-  --primary: 262 83% 58%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 218 80% 55%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 250 15% 90%;
-  --muted-foreground: 250 10% 45%;
-  --accent: 218 15% 92%;
-  --accent-foreground: 250 25% 10%;
-  --destructive: 0 84% 48%;
+  --background: 67 33% 91%;
+  --foreground: 110 15% 15%;
+  --border: 77 20% 82%;
+  --card: 67 30% 95%;
+  --card-foreground: 110 15% 15%;
+  --card-border: 77 20% 85%;
+  --sidebar: 77 25% 88%;
+  --sidebar-foreground: 110 15% 15%;
+  --sidebar-border: 77 20% 82%;
+  --sidebar-primary: 107 24% 45%;
+  --sidebar-primary-foreground: 67 33% 95%;
+  --sidebar-accent: 77 20% 82%;
+  --sidebar-accent-foreground: 110 15% 15%;
+  --sidebar-ring: 107 24% 45%;
+  --popover: 67 30% 93%;
+  --popover-foreground: 110 15% 15%;
+  --popover-border: 77 20% 82%;
+  --primary: 107 24% 45%;
+  --primary-foreground: 67 33% 95%;
+  --secondary: 77 31% 65%;
+  --secondary-foreground: 110 15% 15%;
+  --muted: 77 20% 85%;
+  --muted-foreground: 110 10% 40%;
+  --accent: 77 25% 88%;
+  --accent-foreground: 110 15% 15%;
+  --destructive: 0 72% 48%;
   --destructive-foreground: 0 0% 98%;
-  --input: 250 15% 78%;
-  --ring: 262 83% 58%;
-  --chart-1: 262 83% 55%;
-  --chart-2: 218 89% 52%;
-  --chart-3: 45 93% 52%;
-  --chart-4: 142 76% 46%;
-  --chart-5: 340 82% 55%;
-  --gold: 45 93% 52%;
-  --gold-foreground: 45 100% 20%;
-  --success: 142 76% 46%;
+  --input: 77 20% 75%;
+  --ring: 107 24% 45%;
+  --chart-1: 107 24% 50%;
+  --chart-2: 77 31% 60%;
+  --chart-3: 45 70% 55%;
+  --chart-4: 142 50% 45%;
+  --chart-5: 110 10% 50%;
+  --gold: 45 80% 50%;
+  --gold-foreground: 45 100% 15%;
+  --success: 142 50% 45%;
   --success-foreground: 0 0% 100%;
   --font-sans: 'Inter', 'DM Sans', sans-serif;
   --font-serif: Georgia, serif;
@@ -79,50 +79,50 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
-/* DARK MODE - Gaming inspired theme with purple/blue gradients and gold accents */
+/* DARK MODE - Deep forest sage green theme */
 .dark {
   --button-outline: rgba(255,255,255, .12);
   --badge-outline: rgba(255,255,255, .08);
   --opaque-button-border-intensity: 12;
   --elevate-1: rgba(255,255,255, .05);
   --elevate-2: rgba(255,255,255, .10);
-  --background: 250 25% 8%;
-  --foreground: 0 0% 98%;
-  --border: 250 20% 18%;
-  --card: 250 25% 11%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 250 20% 16%;
-  --sidebar: 250 25% 10%;
-  --sidebar-foreground: 0 0% 98%;
-  --sidebar-border: 250 20% 15%;
-  --sidebar-primary: 262 83% 62%;
+  --background: 110 12% 8%;
+  --foreground: 0 0% 95%;
+  --border: 110 10% 18%;
+  --card: 110 12% 11%;
+  --card-foreground: 0 0% 95%;
+  --card-border: 110 10% 16%;
+  --sidebar: 110 12% 10%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-border: 110 10% 16%;
+  --sidebar-primary: 107 30% 55%;
   --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 250 20% 16%;
-  --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 262 83% 62%;
-  --popover: 250 25% 12%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 250 20% 18%;
-  --primary: 262 83% 62%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 218 89% 58%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 250 20% 18%;
-  --muted-foreground: 250 10% 60%;
-  --accent: 218 25% 20%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 84% 55%;
+  --sidebar-accent: 110 10% 16%;
+  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-ring: 107 30% 55%;
+  --popover: 110 12% 12%;
+  --popover-foreground: 0 0% 95%;
+  --popover-border: 110 10% 18%;
+  --primary: 107 30% 55%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 77 25% 50%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 110 10% 18%;
+  --muted-foreground: 77 12% 60%;
+  --accent: 77 12% 20%;
+  --accent-foreground: 0 0% 95%;
+  --destructive: 0 72% 55%;
   --destructive-foreground: 0 0% 98%;
-  --input: 250 20% 25%;
-  --ring: 262 83% 62%;
-  --chart-1: 262 83% 70%;
-  --chart-2: 218 89% 68%;
-  --chart-3: 45 93% 65%;
-  --chart-4: 142 76% 60%;
-  --chart-5: 340 82% 70%;
-  --gold: 45 93% 58%;
+  --input: 110 10% 22%;
+  --ring: 107 30% 55%;
+  --chart-1: 107 35% 60%;
+  --chart-2: 77 30% 55%;
+  --chart-3: 45 75% 60%;
+  --chart-4: 142 55% 55%;
+  --chart-5: 110 15% 55%;
+  --gold: 45 85% 55%;
   --gold-foreground: 45 100% 10%;
-  --success: 142 76% 55%;
+  --success: 142 55% 50%;
   --success-foreground: 0 0% 100%;
   --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.10);
   --shadow-xs: 0px 2px 4px 0px hsl(0 0% 0% / 0.15);
@@ -159,7 +159,7 @@
   }
 }
 
-/* Gaming-inspired custom animations */
+/* Nature-inspired custom animations */
 @layer utilities {
   /* Hide ugly search cancel button in Chrome */
   input[type="search"]::-webkit-search-cancel-button {
@@ -232,7 +232,7 @@
     inset: -1px;
   }
 
-  /* XP Gradient animation */
+  /* XP Gradient animation - sage green theme */
   .xp-gradient {
     background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)));
   }
@@ -292,7 +292,7 @@
     20%, 40%, 60%, 80% { transform: translateX(5px); }
   }
 
-  /* Pulse glow for buttons */
+  /* Pulse glow for buttons - sage green */
   .pulse-glow {
     animation: pulseGlow 2s ease-in-out infinite;
   }
@@ -417,7 +417,7 @@
     transform: translateY(-2px);
   }
 
-  /* Gradient text */
+  /* Gradient text - sage green theme */
   .gradient-text {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
     -webkit-background-clip: text;
@@ -434,5 +434,33 @@
     0% { transform: scale(0); }
     50% { transform: scale(1.3); }
     100% { transform: scale(1); }
+  }
+
+  /* Leaf float animation - nature theme */
+  .leaf-float {
+    animation: leafFloat 4s ease-in-out infinite;
+  }
+
+  @keyframes leafFloat {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-8px) rotate(5deg); }
+    50% { transform: translateY(0) rotate(0deg); }
+    75% { transform: translateY(-4px) rotate(-3deg); }
+  }
+
+  /* Growth pulse - nature theme */
+  .growth-pulse {
+    animation: growthPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes growthPulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 0.9;
+    }
   }
 }

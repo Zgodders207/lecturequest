@@ -83,7 +83,7 @@ export function Dashboard({
 
         {userProfile.currentStreak > 0 && (
           <div className="flex items-center justify-center gap-2 text-lg">
-            <Flame className="h-6 w-6 text-orange-500 animate-flame-grow" aria-hidden="true" />
+            <Flame className="h-6 w-6 text-gold animate-pulse" aria-hidden="true" />
             <span className="font-semibold">
               {userProfile.currentStreak} day streak!
             </span>
@@ -168,11 +168,11 @@ export function Dashboard({
         <Card className="hover-elevate">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-500/20">
-                <Flame className="h-6 w-6 text-orange-500" aria-hidden="true" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gold/20">
+                <Flame className="h-6 w-6 text-gold" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-3xl font-bold text-orange-500">
+                <p className="text-3xl font-bold text-gold">
                   {userProfile.currentStreak}
                 </p>
                 <p className="text-sm text-muted-foreground">Current Streak</p>

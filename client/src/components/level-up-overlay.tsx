@@ -28,8 +28,8 @@ export function LevelUpOverlay({ newLevel, rewards = [], onContinue }: LevelUpOv
       "bg-primary",
       "bg-secondary",
       "bg-success",
-      "bg-pink-500",
-      "bg-cyan-500",
+      "bg-white",
+      "bg-primary/80",
     ];
 
     for (let i = 0; i < 50; i++) {
@@ -78,7 +78,7 @@ export function LevelUpOverlay({ newLevel, rewards = [], onContinue }: LevelUpOv
         <div className="mb-6">
           <div className="relative inline-block">
             <div className="absolute inset-0 blur-2xl bg-gold/50 rounded-full animate-pulse" />
-            <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-gold to-yellow-300 text-4xl font-bold text-black shadow-2xl mx-auto">
+            <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-gold to-primary text-4xl font-bold text-black shadow-2xl mx-auto">
               {newLevel}
             </div>
           </div>

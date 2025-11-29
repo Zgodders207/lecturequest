@@ -100,7 +100,7 @@ export function Header({ userProfile, onNavigate, currentView }: HeaderProps) {
                 <Flame 
                   className={`h-5 w-5 ${
                     userProfile.currentStreak > 0 
-                      ? "text-orange-500 animate-flame-grow" 
+                      ? "text-gold animate-pulse" 
                       : "text-muted-foreground"
                   }`}
                   aria-hidden="true"
