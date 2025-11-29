@@ -114,19 +114,19 @@ export function QuizView({
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-6 py-12">
-        <div className="mb-8 space-y-4">
+      <div className="max-w-2xl mx-auto px-6 py-16 animate-fade-in">
+        <div className="mb-10 space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
+            <span className="text-muted-foreground">
               {isDaily ? "Daily Quiz" : lectureTitle}
             </span>
-            <div className="flex items-center gap-1.5 text-gold text-sm font-medium relative">
+            <div className="flex items-center gap-2 text-gold font-medium relative">
               <Zap className="h-4 w-4" aria-hidden="true" />
-              <span>{xpEarned} XP</span>
+              <span className="tabular-nums">{xpEarned} XP</span>
               {floatingXP && (
                 <span
                   key={floatingXP.id}
-                  className="absolute -top-6 right-0 animate-float-up text-gold font-bold text-sm"
+                  className="absolute -top-6 right-0 animate-float-up text-gold font-bold"
                   aria-live="polite"
                 >
                   +{floatingXP.amount}
@@ -135,21 +135,21 @@ export function QuizView({
             </div>
           </div>
           
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <span className="font-medium">Question {currentIndex + 1} of {questions.length}</span>
-              <span className="text-muted-foreground">{Math.round(progressPercent)}%</span>
+              <span className="text-muted-foreground tabular-nums">{Math.round(progressPercent)}%</span>
             </div>
             <Progress 
               value={progressPercent} 
-              className="h-1.5"
+              className="h-2"
               aria-label={`Progress: ${currentIndex + 1} of ${questions.length} questions`}
             />
           </div>
         </div>
 
-        <div className={`space-y-6 ${shakeWrong ? "animate-shake" : ""}`}>
-          <h2 className="text-xl font-medium leading-relaxed">
+        <div className={`space-y-8 ${shakeWrong ? "animate-shake" : ""}`}>
+          <h2 className="font-serif text-2xl leading-relaxed">
             {currentQuestion.question}
           </h2>
 
@@ -166,7 +166,7 @@ export function QuizView({
                   key={index}
                   onClick={() => handleSelectAnswer(index)}
                   disabled={showFeedback || isEliminated}
-                  className={`w-full p-4 rounded-lg border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  className={`w-full p-5 rounded-xl border text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     isEliminated
                       ? "opacity-30 cursor-not-allowed border-border bg-muted line-through"
                       : showCorrect
@@ -175,23 +175,23 @@ export function QuizView({
                       ? "border-destructive bg-destructive/5"
                       : isSelected
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
+                      : "border-border hover:border-primary/50 hover:bg-muted/30"
                   }`}
                   role="radio"
                   aria-checked={isSelected}
                   aria-disabled={showFeedback || isEliminated}
                   data-testid={`option-${index}`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <div
-                      className={`flex h-7 w-7 items-center justify-center rounded-full border text-sm font-medium ${
+                      className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors ${
                         showCorrect
                           ? "border-primary bg-primary text-primary-foreground"
                           : showWrong
                           ? "border-destructive bg-destructive text-destructive-foreground"
                           : isSelected
                           ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/50"
+                          : "border-muted-foreground/30"
                       }`}
                     >
                       {showCorrect ? (
@@ -202,7 +202,7 @@ export function QuizView({
                         String.fromCharCode(65 + index)
                       )}
                     </div>
-                    <span className={showWrong ? "text-muted-foreground" : ""}>
+                    <span className={`flex-1 ${showWrong ? "text-muted-foreground" : ""}`}>
                       {option}
                     </span>
                   </div>
@@ -212,15 +212,21 @@ export function QuizView({
           </div>
 
           {showFeedback && (
-            <Card className={selectedAnswer === currentQuestion.correct ? "border-primary/30" : ""}>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-start gap-3">
-                  <Lightbulb className="h-5 w-5 text-gold flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <Card className={`rounded-xl ${selectedAnswer === currentQuestion.correct ? "border-primary/30 bg-primary/5" : ""}`}>
+              <CardContent className="p-5">
+                <div className="flex items-start gap-4">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 ${
+                    selectedAnswer === currentQuestion.correct ? "bg-primary/10" : "bg-gold/10"
+                  }`}>
+                    <Lightbulb className={`h-5 w-5 ${
+                      selectedAnswer === currentQuestion.correct ? "text-primary" : "text-gold"
+                    }`} aria-hidden="true" />
+                  </div>
                   <div>
-                    <p className="font-medium text-sm mb-1">
-                      {selectedAnswer === currentQuestion.correct ? "Correct!" : "Not quite"}
+                    <p className="font-medium mb-1">
+                      {selectedAnswer === currentQuestion.correct ? "Correct!" : "Not quite right"}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-muted-foreground leading-relaxed">
                       {currentQuestion.explanation}
                     </p>
                   </div>
@@ -233,26 +239,24 @@ export function QuizView({
             {!showFeedback && canUseHint && (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={handleUseHint}
-                className="gap-2"
+                className="gap-2 rounded-xl"
                 data-testid="button-hint"
               >
                 <Lightbulb className="h-4 w-4" aria-hidden="true" />
-                Hint ({userProfile.powerUps.hints})
+                Use Hint ({userProfile.powerUps.hints})
               </Button>
             )}
 
             {showFeedback && canUseSecondChance && (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={handleUseSecondChance}
-                className="gap-2"
+                className="gap-2 rounded-xl"
                 data-testid="button-second-chance"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                Retry ({userProfile.powerUps.secondChance})
+                Try Again ({userProfile.powerUps.secondChance})
               </Button>
             )}
 
@@ -262,17 +266,18 @@ export function QuizView({
               <Button
                 onClick={handleSubmitAnswer}
                 disabled={selectedAnswer === null}
+                className="rounded-xl px-6"
                 data-testid="button-submit-answer"
               >
-                Submit
+                Submit Answer
               </Button>
             ) : (
               <Button
                 onClick={handleNextQuestion}
-                className="gap-2"
+                className="gap-2 rounded-xl px-6"
                 data-testid="button-next-question"
               >
-                {isLastQuestion ? "View Results" : "Next"}
+                {isLastQuestion ? "View Results" : "Next Question"}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             )}

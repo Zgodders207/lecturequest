@@ -24,19 +24,19 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-md mx-auto px-6 py-12">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight mb-2">
+      <div className="max-w-md mx-auto px-6 py-16 animate-fade-in">
+        <div className="text-center mb-12">
+          <h1 className="font-serif text-display-sm tracking-tight mb-3">
             Rate Your Confidence
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-lg text-muted-foreground leading-relaxed">
             How well do you understand this material?
           </p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div 
-            className="flex justify-center gap-1"
+            className="flex justify-center gap-2"
             role="radiogroup"
             aria-label="Confidence rating from 1 to 5 stars"
           >
@@ -48,14 +48,14 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
                 onMouseLeave={() => setHoveredRating(0)}
                 onFocus={() => setHoveredRating(value)}
                 onBlur={() => setHoveredRating(0)}
-                className="p-2 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-transform hover:scale-110"
+                className="p-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200 hover:scale-110"
                 role="radio"
                 aria-checked={rating === value}
                 aria-label={`${value} star${value > 1 ? "s" : ""}`}
                 data-testid={`star-${value}`}
               >
                 <Star
-                  className={`h-9 w-9 transition-colors ${
+                  className={`h-10 w-10 transition-all duration-200 ${
                     value <= displayRating
                       ? "fill-gold text-gold"
                       : "text-muted-foreground/30"
@@ -66,13 +66,13 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
             ))}
           </div>
 
-          <div className="min-h-[60px] text-center">
+          <div className="min-h-[80px] text-center">
             {displayRating > 0 && (
-              <div className="space-y-1">
-                <p className="font-medium">{confidenceInfo.message}</p>
-                <p className="text-sm text-gold flex items-center justify-center gap-1">
-                  <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-                  +{confidenceInfo.xp} XP
+              <div className="space-y-2 animate-fade-in">
+                <p className="font-serif text-xl">{confidenceInfo.message}</p>
+                <p className="text-gold flex items-center justify-center gap-1.5 font-medium">
+                  <Zap className="h-4 w-4" aria-hidden="true" />
+                  +{confidenceInfo.xp} XP bonus
                 </p>
               </div>
             )}
@@ -80,15 +80,15 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
 
           {weakTopics.length > 0 && (
             <Card>
-              <CardContent className="pt-4 pb-4">
-                <p className="text-sm font-medium mb-2">Topics to review:</p>
-                <ul className="space-y-1.5">
+              <CardContent className="p-5">
+                <p className="font-medium mb-3">Topics to review:</p>
+                <ul className="space-y-2">
                   {weakTopics.map((topic, i) => (
                     <li 
                       key={i}
-                      className="text-sm text-muted-foreground flex items-center gap-2"
+                      className="text-muted-foreground flex items-center gap-3"
                     >
-                      <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
                       {topic}
                     </li>
                   ))}
@@ -100,16 +100,16 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
           <Button
             onClick={handleSubmit}
             disabled={rating === 0}
-            className="w-full gap-2"
+            className="w-full gap-2 rounded-xl"
             size="lg"
             data-testid="button-submit-rating"
           >
-            Continue
+            Continue to Dashboard
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
 
-          <p className="text-center text-sm text-muted-foreground">
-            Higher ratings = more XP bonus
+          <p className="text-center text-muted-foreground">
+            Higher confidence ratings earn bonus XP
           </p>
         </div>
       </div>

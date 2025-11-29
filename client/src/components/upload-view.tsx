@@ -148,33 +148,33 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-xl mx-auto px-6 py-12">
+      <div className="max-w-xl mx-auto px-6 py-16 animate-fade-in">
         <Button
           variant="ghost"
           onClick={onBack}
-          className="mb-8"
+          className="mb-10 -ml-2"
           data-testid="button-back"
           aria-label="Go back to dashboard"
         >
           <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-          Back to Dashboard
+          Back
         </Button>
 
-        <div className="space-y-2 mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">Upload Lecture</h1>
-          <p className="text-muted-foreground">
-            Upload your study materials to generate a quiz and earn XP.
+        <div className="space-y-3 mb-10">
+          <h1 className="font-serif text-display-sm tracking-tight">Upload Lecture</h1>
+          <p className="text-lg text-muted-foreground leading-relaxed">
+            Upload your study materials to generate a personalized quiz and earn XP.
           </p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div
-            className={`relative rounded-lg border-2 border-dashed transition-all ${
+            className={`relative rounded-xl border-2 border-dashed transition-all duration-200 ${
               dragActive
                 ? "border-primary bg-primary/5"
                 : fileName && content
                   ? "border-primary/50 bg-primary/5"
-                  : "border-border hover:border-muted-foreground/50"
+                  : "border-border hover:border-muted-foreground/50 hover:bg-muted/30"
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -199,31 +199,31 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
               data-testid="input-file"
             />
             
-            <div className="flex flex-col items-center justify-center py-10 px-4">
+            <div className="flex flex-col items-center justify-center py-14 px-6">
               {isParsing ? (
                 <>
-                  <Loader2 className="h-8 w-8 text-primary animate-spin mb-3" aria-hidden="true" />
-                  <p className="font-medium">Processing {fileName}...</p>
-                  <p className="text-sm text-muted-foreground mt-1">Extracting text</p>
+                  <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" aria-hidden="true" />
+                  <p className="font-medium text-lg">Processing {fileName}...</p>
+                  <p className="text-muted-foreground mt-1">Extracting text content</p>
                 </>
               ) : fileName && content ? (
                 <>
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                    <Check className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                    <Check className="h-6 w-6 text-primary" aria-hidden="true" />
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium">{fileName}</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-medium text-lg">{fileName}</span>
                     <Badge variant="secondary" className="text-xs">{getFileTypeLabel()}</Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {content.length.toLocaleString()} characters
+                  <p className="text-muted-foreground">
+                    {content.length.toLocaleString()} characters extracted
                   </p>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       clearFile();
                     }}
-                    className="text-sm text-muted-foreground hover:text-foreground mt-3 underline-offset-4 hover:underline"
+                    className="text-sm text-muted-foreground hover:text-foreground mt-4 underline-offset-4 hover:underline transition-colors"
                     data-testid="button-clear-file"
                   >
                     Choose different file
@@ -231,15 +231,15 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
                 </>
               ) : (
                 <>
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
-                    <Upload className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <Upload className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                   </div>
-                  <p className="font-medium">Drop your file here</p>
-                  <p className="text-sm text-muted-foreground mt-1">or click to browse</p>
-                  <div className="flex gap-2 mt-4">
-                    <Badge variant="outline" className="text-xs font-normal">PDF</Badge>
-                    <Badge variant="outline" className="text-xs font-normal">HTML</Badge>
-                    <Badge variant="outline" className="text-xs font-normal">TXT</Badge>
+                  <p className="font-medium text-lg">Drop your file here</p>
+                  <p className="text-muted-foreground mt-1">or click to browse</p>
+                  <div className="flex gap-2 mt-5">
+                    <Badge variant="outline" className="font-normal">PDF</Badge>
+                    <Badge variant="outline" className="font-normal">HTML</Badge>
+                    <Badge variant="outline" className="font-normal">TXT</Badge>
                   </div>
                 </>
               )}
@@ -247,11 +247,11 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
           </div>
 
           {parseError && (
-            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
-              <div className="flex items-start gap-3">
+            <div className="p-5 rounded-xl bg-destructive/10 border border-destructive/20">
+              <div className="flex items-start gap-4">
                 <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="font-medium text-sm">Processing failed</p>
+                  <p className="font-medium">Processing failed</p>
                   <p className="text-sm text-muted-foreground mt-1">{parseError}</p>
                   <p className="text-sm text-muted-foreground mt-2">
                     You can paste the content manually below.
@@ -261,7 +261,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="lecture-title" className="text-sm font-medium">Title</Label>
               <Input
@@ -269,6 +269,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
                 placeholder="e.g., Introduction to Data Structures"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                className="rounded-xl h-12"
                 data-testid="input-title"
               />
             </div>
@@ -285,18 +286,18 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
                 placeholder="Paste or type your lecture notes here..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="min-h-[160px] resize-y"
+                className="min-h-[180px] resize-y rounded-xl"
                 data-testid="input-content"
               />
             </div>
           </div>
 
           {error && (
-            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
-              <div className="flex items-start gap-3">
+            <div className="p-5 rounded-xl bg-destructive/10 border border-destructive/20">
+              <div className="flex items-start gap-4">
                 <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="font-medium text-sm">Error</p>
+                  <p className="font-medium">Error</p>
                   <p className="text-sm text-muted-foreground mt-1">{error}</p>
                 </div>
               </div>
@@ -306,7 +307,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit || isLoading || isParsing}
-            className="w-full"
+            className="w-full rounded-xl"
             size="lg"
             data-testid="button-generate-quiz"
           >
@@ -323,7 +324,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
             )}
           </Button>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-muted-foreground">
             Complete the quiz to earn 50+ XP
           </p>
         </div>

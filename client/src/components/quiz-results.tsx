@@ -1,4 +1,4 @@
-import { TrendingUp, Award, ArrowRight, Zap } from "lucide-react";
+import { TrendingUp, Award, ArrowRight, Zap, Target, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,30 +32,42 @@ export function QuizResults({
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-md mx-auto px-6 py-12">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight mb-2">
+      <div className="max-w-md mx-auto px-6 py-16 animate-fade-in">
+        <div className="text-center mb-10">
+          <h1 className="font-serif text-display-sm tracking-tight mb-3">
             {isDaily ? "Daily Quiz Complete" : "Quiz Complete"}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-lg text-muted-foreground leading-relaxed">
             {performanceInfo.message}
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="pt-6 pb-6 text-center">
-                <p className="text-3xl font-bold tabular-nums">
+            <Card className="card-hover">
+              <CardContent className="p-6 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Target className="h-5 w-5 text-primary" aria-hidden="true" />
+                </div>
+                <p className="text-3xl font-semibold tabular-nums">
                   {result.score}/{result.total}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">Correct</p>
+                <p className="text-sm text-muted-foreground mt-1">Correct Answers</p>
               </CardContent>
             </Card>
             
-            <Card>
-              <CardContent className="pt-6 pb-6 text-center">
-                <p className={`text-3xl font-bold tabular-nums ${
+            <Card className="card-hover">
+              <CardContent className="p-6 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Award className={`h-5 w-5 ${
+                    result.accuracyPercent >= 80 
+                      ? "text-success" 
+                      : result.accuracyPercent >= 60 
+                      ? "text-gold" 
+                      : "text-muted-foreground"
+                  }`} aria-hidden="true" />
+                </div>
+                <p className={`text-3xl font-semibold tabular-nums ${
                   result.accuracyPercent >= 80 
                     ? "text-success" 
                     : result.accuracyPercent >= 60 
@@ -69,23 +81,23 @@ export function QuizResults({
             </Card>
           </div>
 
-          <Card className="border-gold/20 bg-gold/5">
-            <CardContent className="pt-6 pb-6 text-center">
+          <Card className="border-gold/30 bg-gold/5 gold-glow">
+            <CardContent className="p-6 text-center">
               <div className="flex items-center justify-center gap-2 text-gold">
-                <Zap className="h-5 w-5" aria-hidden="true" />
-                <span className="text-2xl font-bold">+{result.xpEarned} XP</span>
+                <Zap className="h-6 w-6" aria-hidden="true" />
+                <span className="text-3xl font-bold tabular-nums">+{result.xpEarned} XP</span>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Earned</p>
+              <p className="text-sm text-muted-foreground mt-2">Experience Earned</p>
             </CardContent>
           </Card>
 
           {isImprovement && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center justify-center gap-2 text-primary">
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-center gap-3 text-primary">
                   <TrendingUp className="h-5 w-5" aria-hidden="true" />
-                  <span className="font-medium">
-                    +{Math.round(improvementPercent)}% improvement
+                  <span className="font-medium text-lg">
+                    +{Math.round(improvementPercent)}% improvement!
                   </span>
                 </div>
               </CardContent>
@@ -93,14 +105,14 @@ export function QuizResults({
           )}
 
           {result.incorrectTopics.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Review these topics:</p>
+            <div className="space-y-3">
+              <p className="font-medium">Topics to review:</p>
               <div className="flex flex-wrap gap-2">
                 {result.incorrectTopics.map((topic, i) => (
                   <Badge 
                     key={i} 
                     variant="secondary"
-                    className="font-normal"
+                    className="font-normal px-3 py-1"
                   >
                     {topic}
                   </Badge>
@@ -110,22 +122,24 @@ export function QuizResults({
           )}
 
           {newAchievements.length > 0 && (
-            <Card className="border-gold/20 bg-gold/5">
-              <CardContent className="pt-4 pb-4">
-                <p className="text-sm font-medium mb-3 flex items-center gap-2">
-                  <Award className="h-4 w-4 text-gold" aria-hidden="true" />
-                  New Achievements
+            <Card className="border-gold/30 bg-gold/5">
+              <CardContent className="p-5">
+                <p className="font-medium mb-4 flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-gold" aria-hidden="true" />
+                  New Achievements Unlocked
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {newAchievements.map((achievement) => (
                     <div 
                       key={achievement.id}
-                      className="flex items-center gap-3 p-2 rounded-md bg-background/50"
+                      className="flex items-center gap-4 p-3 rounded-xl bg-background/50"
                     >
-                      <span className="text-lg">{achievement.icon}</span>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
+                        <Trophy className="h-5 w-5 text-gold" aria-hidden="true" />
+                      </div>
                       <div>
-                        <p className="font-medium text-sm">{achievement.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-medium">{achievement.name}</p>
+                        <p className="text-sm text-muted-foreground">
                           {achievement.description}
                         </p>
                       </div>
@@ -138,11 +152,11 @@ export function QuizResults({
 
           <Button
             onClick={onContinue}
-            className="w-full gap-2"
+            className="w-full gap-2 rounded-xl"
             size="lg"
             data-testid="button-continue"
           >
-            {isDaily ? "Back to Dashboard" : "Rate Confidence"}
+            {isDaily ? "Back to Dashboard" : "Rate Your Confidence"}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
