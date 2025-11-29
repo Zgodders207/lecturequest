@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/header";
 import { Dashboard } from "@/components/dashboard";
@@ -16,7 +16,6 @@ import {
   xpForNextLevel,
   checkAchievements,
   extractTopics,
-  getLevelTitle,
 } from "@/lib/game-utils";
 import type { 
   UserProfile, 
@@ -173,32 +172,15 @@ export default function Home() {
     const newTotalXP = userProfile.totalXP + xpEarned;
     const calculatedNewLevel = calculateLevel(newTotalXP);
 
-    const updatedProfile: Partial<UserProfile> = {
-      totalXP: newTotalXP,
-      level: calculatedNewLevel,
-      xpToNextLevel: xpForNextLevel(calculatedNewLevel),
-    };
-
-    if (userProfile.powerUps.doubleXP) {
-      updatedProfile.powerUps = { ...userProfile.powerUps, doubleXP: false };
-    }
-
-    if (isPerfect && userProfile.powerUps.secondChance < 10) {
-      updatedProfile.powerUps = { 
-        ...updatedProfile.powerUps || userProfile.powerUps, 
-        secondChance: userProfile.powerUps.secondChance + 1 
-      };
-    }
-
-    const newNeedsPractice = [...userProfile.needsPractice];
+    const newNeedsPractice = userProfile.needsPractice.slice();
     uniqueIncorrectTopics.forEach((topic) => {
       if (!newNeedsPractice.includes(topic)) {
         newNeedsPractice.push(topic);
       }
     });
-    updatedProfile.needsPractice = newNeedsPractice;
 
-    const newMasteredTopics = [...userProfile.masteredTopics];
+    const newMasteredTopics = userProfile.masteredTopics.slice();
+    const filteredNeedsPractice = newNeedsPractice.slice();
     if (accuracyPercent >= 80) {
       uniqueIncorrectTopics.forEach((topic) => {
         const topicScores = lectureHistory
@@ -209,14 +191,32 @@ export default function Home() {
           if (!newMasteredTopics.includes(topic)) {
             newMasteredTopics.push(topic);
           }
-          const idx = newNeedsPractice.indexOf(topic);
-          if (idx > -1) newNeedsPractice.splice(idx, 1);
+          const idx = filteredNeedsPractice.indexOf(topic);
+          if (idx > -1) {
+            filteredNeedsPractice.splice(idx, 1);
+          }
         }
       });
     }
-    updatedProfile.masteredTopics = newMasteredTopics;
 
-    const tempProfile = { ...userProfile, ...updatedProfile };
+    let newPowerUps = { ...userProfile.powerUps };
+    if (userProfile.powerUps.doubleXP) {
+      newPowerUps = { ...newPowerUps, doubleXP: false };
+    }
+    if (isPerfect && userProfile.powerUps.secondChance < 10) {
+      newPowerUps = { ...newPowerUps, secondChance: userProfile.powerUps.secondChance + 1 };
+    }
+
+    const tempProfile: UserProfile = {
+      ...userProfile,
+      totalXP: newTotalXP,
+      level: calculatedNewLevel,
+      xpToNextLevel: xpForNextLevel(calculatedNewLevel),
+      needsPractice: filteredNeedsPractice,
+      masteredTopics: newMasteredTopics,
+      powerUps: newPowerUps,
+    };
+
     const unlockedAchievements = checkAchievements(
       tempProfile,
       lectureHistory,
@@ -224,16 +224,25 @@ export default function Home() {
       perfectScoresCount + (isPerfect ? 1 : 0)
     );
 
-    if (unlockedAchievements.length > 0) {
-      updatedProfile.achievements = tempProfile.achievements;
-    }
-
     setNewAchievements(unlockedAchievements);
     if (unlockedAchievements.length > 0) {
       setPendingAchievements((prev) => [...prev, ...unlockedAchievements]);
     }
 
-    updateProfileMutation.mutate(updatedProfile);
+    const profileUpdate: Partial<UserProfile> = {
+      totalXP: newTotalXP,
+      level: calculatedNewLevel,
+      xpToNextLevel: xpForNextLevel(calculatedNewLevel),
+      needsPractice: filteredNeedsPractice,
+      masteredTopics: newMasteredTopics,
+      powerUps: newPowerUps,
+    };
+
+    if (unlockedAchievements.length > 0) {
+      profileUpdate.achievements = tempProfile.achievements;
+    }
+
+    updateProfileMutation.mutate(profileUpdate);
 
     if (calculatedNewLevel > oldLevel) {
       setNewLevel(calculatedNewLevel);
@@ -244,19 +253,14 @@ export default function Home() {
       setLevelUpRewards(rewards);
 
       if (rewards.length > 0) {
-        const powerUpUpdates: Partial<UserProfile> = {};
+        const rewardPowerUps = { ...newPowerUps };
         if (rewards.includes("Double XP (Next Quiz)")) {
-          powerUpUpdates.powerUps = { ...userProfile.powerUps, doubleXP: true };
+          rewardPowerUps.doubleXP = true;
         }
         if (rewards.includes("+1 Hint Power-Up")) {
-          powerUpUpdates.powerUps = { 
-            ...powerUpUpdates.powerUps || userProfile.powerUps, 
-            hints: userProfile.powerUps.hints + 1 
-          };
+          rewardPowerUps.hints = rewardPowerUps.hints + 1;
         }
-        if (Object.keys(powerUpUpdates).length > 0) {
-          updateProfileMutation.mutate(powerUpUpdates);
-        }
+        updateProfileMutation.mutate({ powerUps: rewardPowerUps });
       }
     }
 
@@ -276,7 +280,7 @@ export default function Home() {
       content: currentLectureContent,
       reviewScore: quizResult?.accuracyPercent || 0,
       xpEarned: (quizResult?.xpEarned || 0) + confidenceXP,
-      incorrectTopics: weakTopics,
+      incorrectTopics: weakTopics.slice(),
       confidenceRating: rating,
       dailyQuizzes: [],
     };
@@ -302,7 +306,7 @@ export default function Home() {
 
     updateProfileMutation.mutate(profileUpdate);
 
-    const tempProfile = { ...userProfile, ...profileUpdate };
+    const tempProfile: UserProfile = { ...userProfile, ...profileUpdate };
     const unlockedAchievements = checkAchievements(
       tempProfile,
       [...lectureHistory, { ...lecture, id: "temp" }],
@@ -323,37 +327,31 @@ export default function Home() {
   const handleDailyQuizComplete = useCallback(() => {
     if (!quizResult) return;
 
-    const improvement = previousDailyScore !== undefined 
-      ? quizResult.accuracyPercent - previousDailyScore 
-      : 0;
-
     setCurrentView("dashboard");
     setQuizResult(null);
     setCurrentQuiz([]);
     setIsDaily(false);
     setPreviousDailyScore(undefined);
-  }, [quizResult, previousDailyScore]);
+  }, [quizResult]);
 
   const handleLoadDemo = useCallback(() => {
     loadDemoMutation.mutate();
   }, [loadDemoMutation]);
 
   const handleUseHint = useCallback(() => {
-    updateProfileMutation.mutate({
-      powerUps: {
-        ...userProfile.powerUps,
-        hints: Math.max(0, userProfile.powerUps.hints - 1),
-      },
-    });
+    const updatedPowerUps = {
+      ...userProfile.powerUps,
+      hints: Math.max(0, userProfile.powerUps.hints - 1),
+    };
+    updateProfileMutation.mutate({ powerUps: updatedPowerUps });
   }, [userProfile.powerUps, updateProfileMutation]);
 
   const handleUseSecondChance = useCallback(() => {
-    updateProfileMutation.mutate({
-      powerUps: {
-        ...userProfile.powerUps,
-        secondChance: Math.max(0, userProfile.powerUps.secondChance - 1),
-      },
-    });
+    const updatedPowerUps = {
+      ...userProfile.powerUps,
+      secondChance: Math.max(0, userProfile.powerUps.secondChance - 1),
+    };
+    updateProfileMutation.mutate({ powerUps: updatedPowerUps });
   }, [userProfile.powerUps, updateProfileMutation]);
 
   const handleDismissAchievement = useCallback((id: string) => {

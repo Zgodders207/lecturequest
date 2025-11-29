@@ -2,6 +2,10 @@ import { randomUUID } from "crypto";
 import type { UserProfile, Lecture, Achievement } from "@shared/schema";
 import { INITIAL_USER_PROFILE, ALL_ACHIEVEMENTS, DEMO_USER_PROFILE, DEMO_LECTURES } from "@shared/schema";
 
+function deepClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 export interface IStorage {
   getUserProfile(): UserProfile;
   updateUserProfile(profile: Partial<UserProfile>): UserProfile;
@@ -21,31 +25,71 @@ export class MemStorage implements IStorage {
   private lectures: Lecture[];
 
   constructor() {
-    this.userProfile = JSON.parse(JSON.stringify(INITIAL_USER_PROFILE));
+    this.userProfile = deepClone(INITIAL_USER_PROFILE);
     this.lectures = [];
   }
 
   getUserProfile(): UserProfile {
-    return JSON.parse(JSON.stringify(this.userProfile));
+    return deepClone(this.userProfile);
   }
 
   updateUserProfile(updates: Partial<UserProfile>): UserProfile {
-    this.userProfile = { ...this.userProfile, ...updates };
-    if (updates.achievements) {
-      this.userProfile.achievements = updates.achievements.map(a => ({ ...a }));
-    }
+    const clonedUpdates = deepClone(updates);
+    const currentProfile = deepClone(this.userProfile);
+    
+    const newProfile: UserProfile = {
+      ...currentProfile,
+      achievements: clonedUpdates.achievements !== undefined 
+        ? clonedUpdates.achievements 
+        : currentProfile.achievements,
+      masteredTopics: clonedUpdates.masteredTopics !== undefined 
+        ? clonedUpdates.masteredTopics 
+        : currentProfile.masteredTopics,
+      needsPractice: clonedUpdates.needsPractice !== undefined 
+        ? clonedUpdates.needsPractice 
+        : currentProfile.needsPractice,
+      powerUps: clonedUpdates.powerUps !== undefined 
+        ? clonedUpdates.powerUps 
+        : currentProfile.powerUps,
+      level: clonedUpdates.level !== undefined 
+        ? clonedUpdates.level 
+        : currentProfile.level,
+      totalXP: clonedUpdates.totalXP !== undefined 
+        ? clonedUpdates.totalXP 
+        : currentProfile.totalXP,
+      xpToNextLevel: clonedUpdates.xpToNextLevel !== undefined 
+        ? clonedUpdates.xpToNextLevel 
+        : currentProfile.xpToNextLevel,
+      currentStreak: clonedUpdates.currentStreak !== undefined 
+        ? clonedUpdates.currentStreak 
+        : currentProfile.currentStreak,
+      longestStreak: clonedUpdates.longestStreak !== undefined 
+        ? clonedUpdates.longestStreak 
+        : currentProfile.longestStreak,
+      totalLectures: clonedUpdates.totalLectures !== undefined 
+        ? clonedUpdates.totalLectures 
+        : currentProfile.totalLectures,
+      averageConfidence: clonedUpdates.averageConfidence !== undefined 
+        ? clonedUpdates.averageConfidence 
+        : currentProfile.averageConfidence,
+      lastActivityDate: clonedUpdates.lastActivityDate !== undefined 
+        ? clonedUpdates.lastActivityDate 
+        : currentProfile.lastActivityDate,
+    };
+    
+    this.userProfile = newProfile;
     return this.getUserProfile();
   }
 
   resetUserProfile(): UserProfile {
-    this.userProfile = JSON.parse(JSON.stringify(INITIAL_USER_PROFILE));
+    this.userProfile = deepClone(INITIAL_USER_PROFILE);
     this.lectures = [];
     return this.getUserProfile();
   }
 
   loadDemoData(): { profile: UserProfile; lectures: Lecture[] } {
-    this.userProfile = JSON.parse(JSON.stringify(DEMO_USER_PROFILE));
-    this.lectures = JSON.parse(JSON.stringify(DEMO_LECTURES));
+    this.userProfile = deepClone(DEMO_USER_PROFILE);
+    this.lectures = deepClone(DEMO_LECTURES);
     return {
       profile: this.getUserProfile(),
       lectures: this.getLectures(),
@@ -53,30 +97,32 @@ export class MemStorage implements IStorage {
   }
 
   getLectures(): Lecture[] {
-    return JSON.parse(JSON.stringify(this.lectures));
+    return deepClone(this.lectures);
   }
 
   getLecture(id: string): Lecture | undefined {
     const lecture = this.lectures.find(l => l.id === id);
-    return lecture ? JSON.parse(JSON.stringify(lecture)) : undefined;
+    return lecture ? deepClone(lecture) : undefined;
   }
 
   addLecture(lectureData: Omit<Lecture, "id">): Lecture {
+    const clonedData = deepClone(lectureData);
     const lecture: Lecture = {
-      ...lectureData,
+      ...clonedData,
       id: randomUUID(),
     };
     this.lectures.push(lecture);
     this.userProfile.totalLectures = this.lectures.length;
-    return JSON.parse(JSON.stringify(lecture));
+    return deepClone(lecture);
   }
 
   updateLecture(id: string, updates: Partial<Lecture>): Lecture | undefined {
     const index = this.lectures.findIndex(l => l.id === id);
     if (index === -1) return undefined;
     
-    this.lectures[index] = { ...this.lectures[index], ...updates };
-    return JSON.parse(JSON.stringify(this.lectures[index]));
+    const clonedUpdates = deepClone(updates);
+    this.lectures[index] = { ...this.lectures[index], ...clonedUpdates };
+    return deepClone(this.lectures[index]);
   }
 
   getWeakTopics(): string[] {

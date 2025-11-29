@@ -21,24 +21,37 @@ const generateDailyQuizRequestSchema = z.object({
   confidenceLevel: z.number().min(1).max(5),
 });
 
+const achievementSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  icon: z.string(),
+  unlocked: z.boolean(),
+  unlockedDate: z.string().optional(),
+  progress: z.number().optional(),
+  maxProgress: z.number().optional(),
+});
+
+const powerUpsSchema = z.object({
+  secondChance: z.number().min(0),
+  hints: z.number().min(0),
+  doubleXP: z.boolean(),
+});
+
 const updateProfileSchema = z.object({
-  level: z.number().optional(),
-  totalXP: z.number().optional(),
-  xpToNextLevel: z.number().optional(),
-  currentStreak: z.number().optional(),
-  longestStreak: z.number().optional(),
-  totalLectures: z.number().optional(),
-  averageConfidence: z.number().optional(),
-  achievements: z.array(z.any()).optional(),
+  level: z.number().min(1).optional(),
+  totalXP: z.number().min(0).optional(),
+  xpToNextLevel: z.number().min(0).optional(),
+  currentStreak: z.number().min(0).optional(),
+  longestStreak: z.number().min(0).optional(),
+  totalLectures: z.number().min(0).optional(),
+  averageConfidence: z.number().min(0).max(5).optional(),
+  achievements: z.array(achievementSchema).optional(),
   masteredTopics: z.array(z.string()).optional(),
   needsPractice: z.array(z.string()).optional(),
-  powerUps: z.object({
-    secondChance: z.number(),
-    hints: z.number(),
-    doubleXP: z.boolean(),
-  }).optional(),
+  powerUps: powerUpsSchema.optional(),
   lastActivityDate: z.string().optional(),
-});
+}).strict();
 
 const addLectureSchema = z.object({
   title: z.string(),
