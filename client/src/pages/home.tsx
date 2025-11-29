@@ -26,7 +26,7 @@ import type {
 } from "@shared/schema";
 import { INITIAL_USER_PROFILE } from "@shared/schema";
 
-type ViewType = "dashboard" | "upload" | "quiz" | "results" | "confidence" | "achievements";
+type ViewType = "dashboard" | "upload" | "quiz" | "results" | "confidence" | "achievements" | "loading";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
@@ -101,6 +101,9 @@ export default function Home() {
       setCurrentQuiz(data.questions);
       setCurrentView("quiz");
     },
+    onError: () => {
+      setCurrentView("dashboard");
+    },
   });
 
   const handleSaveLecture = useCallback((content: string, title: string) => {
@@ -131,6 +134,7 @@ export default function Home() {
     setCurrentLectureId(lectureId);
     setCurrentLectureTitle(lecture.title);
     setCurrentLectureContent(lecture.content);
+    setCurrentView("loading");
     generateQuizMutation.mutate({ content: lecture.content, title: lecture.title });
   }, [lectureHistory, generateQuizMutation]);
 
@@ -409,6 +413,20 @@ export default function Home() {
             achievements={userProfile.achievements}
             onBack={() => setCurrentView("dashboard")}
           />
+        );
+
+      case "loading":
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6" data-testid="view-loading">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-primary/20 rounded-full" />
+              <div className="absolute top-0 left-0 w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-serif text-foreground">Generating Your Quiz</h2>
+              <p className="text-muted-foreground">Our AI is crafting personalized questions from your lecture...</p>
+            </div>
+          </div>
         );
 
       case "dashboard":
