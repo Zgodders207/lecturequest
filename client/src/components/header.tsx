@@ -28,14 +28,11 @@ export function Header({ userProfile, onNavigate, currentView }: HeaderProps) {
       <div className="max-w-5xl mx-auto flex h-16 items-center justify-between gap-6 px-6">
         <button
           onClick={() => onNavigate("dashboard")}
-          className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md group"
+          className="focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
           data-testid="link-home"
           aria-label="Go to dashboard"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary transition-transform group-hover:scale-105">
-            <span className="text-primary-foreground font-serif font-semibold text-lg">L</span>
-          </div>
-          <span className="font-serif text-xl tracking-tight hidden sm:inline-block">
+          <span className="font-serif text-xl tracking-tight">
             LectureQuest
           </span>
         </button>

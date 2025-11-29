@@ -293,6 +293,8 @@ export default function Home() {
       incorrectTopics: weakTopics.slice(),
       confidenceRating: rating,
       dailyQuizzes: [],
+      needsReview: false,
+      lastReviewed: new Date().toISOString(),
     };
 
     addLectureMutation.mutate(lecture);

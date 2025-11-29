@@ -48,6 +48,8 @@ export interface Lecture {
   incorrectTopics: string[];
   confidenceRating: number;
   dailyQuizzes: DailyQuiz[];
+  needsReview: boolean;
+  lastReviewed?: string;
 }
 
 // User profile with gamification data
@@ -263,6 +265,8 @@ export const DEMO_LECTURES: Lecture[] = [
         improvement: -5,
       },
     ],
+    needsReview: true,
+    lastReviewed: "2025-01-15",
   },
   {
     id: "demo-2",
@@ -274,6 +278,8 @@ export const DEMO_LECTURES: Lecture[] = [
     incorrectTopics: ["Queue Operations", "Space Complexity"],
     confidenceRating: 3,
     dailyQuizzes: [],
+    needsReview: true,
+    lastReviewed: "2025-01-18",
   },
 ];
 
