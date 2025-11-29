@@ -1,0 +1,118 @@
+{
+  "colorScheme": "light",
+  "fonts": [
+    {
+      "family": "Figtree",
+      "role": "body"
+    },
+    {
+      "family": "Arial",
+      "role": "body"
+    },
+    {
+      "family": "Eb Garamond",
+      "role": "heading"
+    },
+    {
+      "family": "Helvetica",
+      "role": "body"
+    }
+  ],
+  "colors": {
+    "primary": "#034F46",
+    "accent": "#F0D7FF",
+    "background": "#FFFDF9",
+    "textPrimary": "#1A1A1A",
+    "link": "#F0D7FF"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Figtree",
+      "heading": "Eb Garamond"
+    },
+    "fontStacks": {
+      "heading": [
+        "Eb Garamond",
+        "Arial",
+        "sans-serif"
+      ],
+      "body": [
+        "Figtree",
+        "Arial",
+        "sans-serif"
+      ],
+      "paragraph": [
+        "Figtree",
+        "Arial",
+        "sans-serif"
+      ]
+    },
+    "fontSizes": {
+      "h1": "120px",
+      "h2": "64px",
+      "body": "20px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 4,
+    "borderRadius": "0px"
+  },
+  "components": {
+    "input": {
+      "borderColor": "#CCCCCC",
+      "borderRadius": "0px"
+    },
+    "buttonPrimary": {
+      "background": "#F0D7FF",
+      "textColor": "#1A1A1A",
+      "borderColor": "#1A1A1A",
+      "borderRadius": "12px",
+      "shadow": "none"
+    },
+    "buttonSecondary": {
+      "background": "#FFFFEB",
+      "textColor": "#1A1A1A",
+      "borderColor": "#1A1A1A",
+      "borderRadius": "12px",
+      "shadow": "none"
+    }
+  },
+  "images": {
+    "logo": "File saved at: attached_assets/logo.svg",
+    "favicon": "File saved at: attached_assets/favicon.png",
+    "ogImage": "File saved at: attached_assets/ogImage.jpg"
+  },
+  "__framework_hints": [],
+  "__llm_logo_reasoning": {
+    "selectedIndex": 0,
+    "reasoning": "Logo #0 visually represents the brand name 'Wispr Flow' and is located in the header, linking to the homepage, making it the most suitable choice.",
+    "confidence": 0.9
+  },
+  "__llm_button_reasoning": {
+    "primary": {
+      "index": 0,
+      "text": "Download for free",
+      "reasoning": "Button #0 has a vibrant background color (#F0D7FF) and action-oriented text ('Download for free'), making it the primary call-to-action."
+    },
+    "secondary": {
+      "index": 2,
+      "text": "Try Flow",
+      "reasoning": "Button #2 has a different background color (#FFFFEB) and is less prominent, making it suitable as the secondary action."
+    },
+    "confidence": 0.95
+  },
+  "personality": {
+    "tone": "modern",
+    "energy": "medium",
+    "targetAudience": "tech-savvy individuals and businesses looking for AI solutions."
+  },
+  "designSystem": {
+    "framework": "unknown",
+    "componentLibrary": null
+  },
+  "confidence": {
+    "buttons": 0.95,
+    "colors": 0.9,
+    "overall": 0.925
+  }
+}

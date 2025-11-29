@@ -1,135 +1,242 @@
-# Design Guidelines: Gamified Lecture Learning App
+# LectureQuest Design Guidelines
 
-## Design Approach
-**Nature-Inspired Sage Green Aesthetic** - Calming, organic design with emphasis on growth, progression, and natural learning flow.
+## Design Philosophy
 
-## Core Color Palette
-Based on the sage green color scheme:
-- **#F1F3E0** (67 33% 91%) - Light cream background
-- **#D2DCB6** (77 31% 79%) - Light sage for accents and secondary elements
-- **#A1BC98** (107 24% 67%) - Medium sage for primary actions
-- **#778873** (110 10% 50%) - Dark sage for text and emphasis
+LectureQuest follows a "quiet luxury" aesthetic inspired by modern editorial design. The visual language balances **warmth and professionalism**, creating an inviting learning environment that feels sophisticated yet approachable.
 
-## Core Design Elements
+### Core Principles
+- **Editorial elegance** - Every element serves emotional or cognitive clarity
+- **Warm minimalism** - Clean layouts with purposeful whitespace
+- **Human-centered** - Feels welcoming, not clinical or cold
+- **Restrained, bold when needed** - Subtle by default, impactful at key moments
 
-### Color System
-- **Primary**: Sage green (107 24% 45% light / 107 30% 55% dark) for CTAs and emphasis
-- **Secondary**: Light sage (77 31% 65% light / 77 25% 50% dark) for secondary actions
-- **XP/Achievement Gold**: Warm gold for rewards and celebrations
-- **Base**: Cream tones in light mode, deep forest greens in dark mode
-- **Feedback Colors**: Green for success, red for errors, gold for achievements
-- **Card Backgrounds**: Subtle elevation through soft sage tints
+---
 
-### Typography
-- **Headers**: Clean, nature-inspired hierarchy with gradient text treatments
-- **Body**: High contrast text on sage backgrounds
-- **XP/Stats**: Large, bold numbers with gold accents
-- **Level Titles**: Prominent badges with descriptive titles (e.g., "Knowledge Warrior")
-- **Motivational Messages**: Dynamic, supportive performance feedback
+## Color Palette
 
-### Layout System
-**Spacing**: Tailwind units 2, 4, 6, 8 for consistency
-- Card-based layouts with rounded corners and soft shadow elevation
-- Full-screen overlays for level-up celebrations
-- Sticky header with level badge, XP bar, and streak counter
-- Toast notifications sliding from top-right (auto-dismiss 4s)
+### Light Mode
+| Role | Color | HSL |
+|------|-------|-----|
+| Background | Warm Cream | `43 60% 98%` (#FFFDF9) |
+| Primary | Forest Green | `171 93% 16%` (#034F46) |
+| Accent | Soft Lavender | `282 60% 94%` (#F0D7FF) |
+| Text | Near Black | `0 0% 10%` (#1A1A1A) |
+| Card | Warm White | `43 40% 97%` |
+| Muted | Cream Gray | `43 20% 92%` |
+| Gold (XP) | Warm Gold | `40 85% 55%` |
+| Success | Teal Green | `160 60% 35%` |
 
-### Component Library
+### Dark Mode
+| Role | Color | HSL |
+|------|-------|-----|
+| Background | Deep Forest | `170 15% 8%` |
+| Primary | Bright Teal | `160 60% 45%` |
+| Accent | Muted Lavender | `282 40% 25%` |
+| Text | Warm White | `40 20% 95%` |
+| Card | Dark Forest | `170 12% 11%` |
 
-**Navigation/Header**
-- Persistent header with user level badge (circular, prominent)
-- Horizontal XP progress bar with animated sage gradient fill
-- Streak counter with flame icon that grows visually with length
-- Mobile hamburger menu with slide-out drawer
+### Usage Guidelines
+- Use **primary (forest green)** for main CTAs and important UI elements
+- Use **accent (lavender)** for secondary buttons and highlights
+- Use **gold** sparingly for XP, achievements, and celebration moments
+- Never use pure white (#FFF) for backgrounds - always use warm cream tones
 
-**Upload Interface**
-- Drag-and-drop zone with dashed border and hover state
-- Large file icon and instructional text
-- Support for click-to-upload alternative
-- File type indicator (text/PDF accepted)
+---
 
-**Quiz Interface**
-- Large question card centered on screen
-- Multiple choice options as full-width buttons with hover effects
-- Progress indicator showing question X of Y
-- Immediate visual feedback (green checkmark/red shake animation)
-- Floating "+10 XP" animations on correct answers
-- Explanation reveal after answer submission
+## Typography
 
-**Confidence Rating**
-- 1-5 star rating interface with large touch targets
-- Visual fill states and hover previews
-- Bonus XP display per rating point
+### Font Families
+- **Headings**: EB Garamond (serif) - Elegant, editorial feel
+- **Body/UI**: Figtree (sans-serif) - Clean, modern, highly readable
 
-**Achievement System**
-- Grid layout of badge cards (3-4 columns desktop, 2 mobile)
-- Locked achievements as greyscale silhouettes with lock icon
-- Unlocked badges in full color with gold glow effect
-- Recently unlocked highlighted with pulsing border
-- Click to expand for details and unlock requirements
-- Progress bars for multi-step achievements
+### Type Scale
+| Element | Size | Weight | Font |
+|---------|------|--------|------|
+| Display Hero | 4.5rem | 400 | EB Garamond |
+| H1 | 2.5rem | 500 | EB Garamond |
+| H2 | 1.75rem | 500 | EB Garamond |
+| H3 | 1.25rem | 500 | Figtree |
+| Body | 1rem | 400 | Figtree |
+| Small | 0.875rem | 400 | Figtree |
+| Caption | 0.75rem | 400 | Figtree |
 
-**Dashboard Cards**
-- Lecture history with score, XP, and date
-- Weak topics with circular progress rings (red to yellow to green)
-- Mastered topics list with checkmarks
-- Personal records section with trophy icons
-- Simulated leaderboard position ("Top 15% of students")
+### Typography Rules
+- Use serif (EB Garamond) for headlines and display text
+- Use sans-serif (Figtree) for body text, labels, and UI elements
+- Maintain generous line-height (1.5-1.75) for readability
+- Use tracking-tight (-0.02em) for large headlines
 
-**Power-Ups Display**
-- Icon-based inventory with count badges
-- Inactive state when none available (greyscale)
-- Active/usable state with sage color and soft glow
-- Tooltip on hover showing power-up description
+---
 
-**Progress Visualizations**
-- Animated sage gradient XP bar (smooth transitions)
-- Circular progress rings for topic mastery
-- Line chart showing score trends over time
-- Skill tree with interconnected nodes for topics
+## Spacing & Layout
 
-### Animations
-**Celebration Effects** (use sparingly, high impact moments only)
-- Confetti burst on achievement unlock (canvas-based)
-- Sparkle particles on level-up (full-screen overlay)
-- Floating "+XP" text on correct answers (fade up and out)
-- Shake animation on incorrect answers
-- Smooth progress bar fills with easing
-- Leaf float animation for nature theme elements
-- Growth pulse for encouraging elements
+### Container Widths
+- **Max content width**: 1200px (max-w-5xl)
+- **Narrow content**: 640px (max-w-xl) - for forms, modals
+- **Reading width**: 720px (max-w-2xl) - for quizzes, results
 
-**Transitions**
-- Card hover: subtle scale (1.02) and shadow increase
-- Button presses: quick scale down (0.98)
-- View transitions: fade with 200ms duration
-- Toast slide-in from right (300ms ease-out)
+### Spacing Scale
+| Size | Tailwind | Use Case |
+|------|----------|----------|
+| xs | 2 (0.5rem) | Tight inline spacing |
+| sm | 3-4 (0.75-1rem) | Between related items |
+| md | 6 (1.5rem) | Section padding |
+| lg | 8-12 (2-3rem) | Major section breaks |
+| xl | 16-24 (4-6rem) | Page sections |
 
-### Accessibility
-- Semantic HTML5 elements throughout
-- ARIA labels on all interactive elements
-- Keyboard navigation with visible focus rings (ring-2 ring-primary)
-- Icons paired with descriptive text
-- High contrast ratios (WCAG AA compliant)
+### Layout Principles
+- Use generous vertical padding (py-16 to py-24) for page sections
+- Cards should have consistent internal padding (p-6)
+- Maintain visual rhythm with consistent spacing between elements
+- Use grid layouts (2-4 columns) for stat cards and achievements
+
+---
+
+## Components
+
+### Buttons
+
+**Primary Button** (Forest Green)
+- Background: primary
+- Text: primary-foreground (white)
+- Border-radius: 12px (rounded-xl)
+- Use for main CTAs: "Start Quiz", "Upload Lecture"
+
+**Accent Button** (Lavender)
+- Background: accent (soft lavender)
+- Text: foreground (dark)
+- Border: 1px solid foreground/10
+- Use for secondary actions: "View All", "Try Demo"
+
+**Ghost Button**
+- No background
+- Text: foreground
+- Use for tertiary actions: "Back", navigation
+
+### Cards
+
+- Background: card (warm white)
+- Border: subtle (border-border)
+- Border-radius: 12px
+- Shadow: subtle warm shadow (shadow-sm)
+- Hover: subtle lift effect (translateY -2px)
+
+### Badges
+
+**XP/Gold Badge**
+- Background: gold/10
+- Text: gold
+- Border: gold/20
+
+**Achievement Badge**
+- Unlocked: gold background glow
+- Locked: muted background, grayscale icon
+
+### Progress Bars
+
+- Track: muted background
+- Fill: primary (forest green)
+- Height: 6-8px for main progress, 4px for inline
+- Border-radius: full (rounded-full)
+
+---
+
+## Iconography
+
+### Style
+- Use Lucide React icons for all UI icons
+- Icon size: 16-20px for inline, 24px for standalone
+- Stroke width: 1.5-2 for visibility
+- Color: inherit from parent or use semantic colors
+
+### Key Icons
+| Use | Icon | Notes |
+|-----|------|-------|
+| XP | Zap | Gold color |
+| Level | Award | Primary color |
+| Streak | Flame | Gold when active |
+| Upload | Upload | Primary color |
+| Quiz | Play | Primary color |
+| Achievement | Trophy | Gold color |
+| Back | ArrowLeft | Muted color |
+| Theme | Sun/Moon | Muted color |
+
+---
+
+## Animation & Motion
+
+### Principles
+- **Purposeful**: Every animation should serve clarity or delight
+- **Subtle**: Prefer understated over flashy
+- **Quick**: Keep durations under 400ms for UI responses
+
+### Standard Transitions
+- **Hover**: 200ms ease
+- **Focus**: 150ms ease
+- **Page transitions**: 300-400ms ease-out
+- **Loading states**: Subtle shimmer or pulse
+
+### Key Animations
+- **Float up**: XP earned (+10, +50) floats up and fades
+- **Check bounce**: Correct answer checkmark bounces in
+- **Shake**: Wrong answer subtle horizontal shake
+- **Gold pulse**: Achievement unlock subtle glow pulse
+- **Fade in**: Page content fades in with slight upward motion
+
+---
+
+## Gamification Visual Language
+
+### XP & Progress
+- XP numbers always in **gold** color
+- Show progress bars prominently
+- Use **+XX XP** format for earned points
+- Animate XP gains with float-up effect
+
+### Levels
+- Display level number prominently
+- Show level title (e.g., "Novice Scholar")
+- Progress to next level with visual bar
+
+### Achievements
+- Unlocked: Gold background, full color icon
+- Locked: Muted background, grayscale icon
+- Progress: Small progress bar below
+
+### Streaks
+- Flame icon in gold when active
+- Display streak count prominently
+- Celebrate milestones (7, 30 days)
+
+---
+
+## Accessibility
+
+### Color Contrast
+- Ensure 4.5:1 minimum for body text
+- Ensure 3:1 minimum for large text and UI elements
+- Test both light and dark modes
+
+### Focus States
+- Visible focus rings on all interactive elements
+- Use ring color matching primary
+- Never remove focus styles
+
+### Motion
+- Respect prefers-reduced-motion
+- Provide non-animated alternatives
+
+---
+
+## Responsive Design
+
+### Breakpoints
+- **sm**: 640px - Stack to single column
+- **md**: 768px - Tablet adjustments
+- **lg**: 1024px - Full desktop layout
+
+### Mobile Considerations
 - Touch targets minimum 44x44px
-- Screen reader announcements for XP gains and achievements
-
-### Mobile Responsiveness
-- Single column layouts on mobile
-- Collapsible navigation drawer
-- Touch-friendly button sizing (min 44px height)
-- Swipe gestures for quiz navigation (optional)
-- Responsive typography scaling
-- Card stacking on narrow viewports
-
-### Images
-**No hero images required** - This is a productivity/learning tool focused on functionality over marketing visuals. Any imagery should be:
-- Icon-based illustrations for empty states
-- Achievement badge graphics (simple icons acceptable)
-- Profile avatar placeholders (generated initials or nature-themed icons)
-
-### Motivational UX
-- Dynamic performance messages based on scores
-- Immediate positive reinforcement (confetti, +XP animations)
-- Progress milestones ("2 more reviews until Level 5!")
-- Encouraging copy for struggling ("Growth happens outside comfort zones!")
-- Visual celebration for streaks and perfect scores
+- Reduce padding on mobile (py-8 vs py-16)
+- Stack horizontal layouts vertically
+- Simplify navigation on mobile
