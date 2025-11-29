@@ -15,11 +15,34 @@ async function parsePdf(buffer: Buffer): Promise<{ text: string }> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .filter((item: any) => item.str)
-      .map((item: any) => item.str)
-      .join(" ");
-    fullText += pageText + "\n";
+    
+    let lastY: number | null = null;
+    const lines: string[] = [];
+    let currentLine = "";
+    
+    for (const item of textContent.items) {
+      if (!('str' in item) || !item.str) continue;
+      
+      const itemAny = item as any;
+      const y = itemAny.transform ? itemAny.transform[5] : null;
+      
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 5) {
+        if (currentLine.trim()) {
+          lines.push(currentLine.trim());
+        }
+        currentLine = item.str;
+      } else {
+        currentLine += (currentLine ? " " : "") + item.str;
+      }
+      
+      lastY = y;
+    }
+    
+    if (currentLine.trim()) {
+      lines.push(currentLine.trim());
+    }
+    
+    fullText += lines.join("\n") + "\n";
   }
   
   return { text: fullText };
@@ -112,57 +135,89 @@ function cleanJsonResponse(text: string): string {
 function extractTitleFromText(text: string): string | null {
   const lines = text.split(/[\n\r]+/).map(line => line.trim()).filter(line => line.length > 0);
   
-  const titleCandidates: string[] = [];
+  const primaryCandidates: string[] = [];
+  const secondaryCandidates: string[] = [];
   
-  for (let i = 0; i < Math.min(20, lines.length); i++) {
+  for (let i = 0; i < Math.min(30, lines.length); i++) {
     const line = lines[i];
+    const lowerLine = line.toLowerCase();
     
     if (line.startsWith("#")) {
       const title = line.replace(/^#+\s*/, "").trim();
-      if (title.length >= 5 && title.length <= 150) {
+      if (title.length >= 5 && title.length <= 100) {
         return title;
       }
     }
     
-    const lowerLine = line.toLowerCase();
     if (
       lowerLine.includes("©") ||
       lowerLine.includes("copyright") ||
       lowerLine.includes("all rights reserved") ||
       lowerLine.includes("confidential") ||
-      lowerLine.match(/^\d+$/) ||
-      lowerLine.match(/^page\s+\d+/) ||
-      line.length < 5
+      lowerLine.includes("cisco") ||
+      /^\d+$/.test(lowerLine) ||
+      /^page\s+\d+/.test(lowerLine) ||
+      line.length < 8 ||
+      line.length > 80
     ) {
       continue;
     }
     
     if (
-      lowerLine.includes("module") ||
-      lowerLine.includes("chapter") ||
-      lowerLine.includes("lecture") ||
-      lowerLine.includes("introduction") ||
-      lowerLine.includes("unit")
+      lowerLine.includes("objective") ||
+      lowerLine.includes("description") ||
+      lowerLine.includes("topic title") ||
+      lowerLine.includes("topic objective") ||
+      lowerLine.startsWith("module title:") ||
+      lowerLine.startsWith("chapter title:") ||
+      lowerLine.startsWith("lecture title:")
     ) {
-      if (line.length >= 10 && line.length <= 150) {
-        titleCandidates.unshift(line);
+      continue;
+    }
+    
+    const moduleMatch = line.match(/^(Module|Chapter|Unit|Lecture)\s+\d+[:\s]+(.+)/i);
+    if (moduleMatch) {
+      primaryCandidates.push(line);
+      continue;
+    }
+    
+    if (
+      lowerLine.includes("introduction to") ||
+      lowerLine.includes("fundamentals of") ||
+      lowerLine.includes("basics of") ||
+      lowerLine.includes("overview of")
+    ) {
+      primaryCandidates.push(line);
+      continue;
+    }
+    
+    if (line.length >= 10 && line.length <= 60 && !lowerLine.includes(":")) {
+      secondaryCandidates.push(line);
+    }
+  }
+  
+  if (primaryCandidates.length >= 2) {
+    const first = primaryCandidates[0];
+    const second = primaryCandidates[1];
+    if (first.length + second.length <= 100) {
+      return `${first} - ${second}`;
+    }
+    return first;
+  }
+  
+  if (primaryCandidates.length === 1) {
+    if (secondaryCandidates.length > 0) {
+      const first = primaryCandidates[0];
+      const second = secondaryCandidates[0];
+      if (first.length + second.length <= 100) {
+        return `${first} - ${second}`;
       }
-    } else if (line.length >= 10 && line.length <= 100) {
-      titleCandidates.push(line);
     }
+    return primaryCandidates[0];
   }
   
-  if (titleCandidates.length >= 2) {
-    const first = titleCandidates[0];
-    const second = titleCandidates[1];
-    if (first.length + second.length <= 120) {
-      return `${first} - ${second}`.slice(0, 120);
-    }
-    return first.slice(0, 100);
-  }
-  
-  if (titleCandidates.length === 1) {
-    return titleCandidates[0].slice(0, 100);
+  if (secondaryCandidates.length > 0) {
+    return secondaryCandidates[0];
   }
   
   return null;
