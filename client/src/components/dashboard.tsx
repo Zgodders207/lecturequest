@@ -1,14 +1,31 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Zap, Flame, BookOpen, 
   Play, Upload, ChevronRight, Trash2, Bell,
-  Target, Award, TrendingUp, Trophy, Clock
+  Target, Award, TrendingUp, Trophy, Clock,
+  Calendar, CalendarDays, AlertTriangle, RefreshCw, Settings, X, Loader2, MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { UserProfile, Lecture } from "@shared/schema";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { UserProfile, Lecture, CalendarSettings, CalendarEvent } from "@shared/schema";
 import { xpForNextLevel, formatDate, getMotivationalQuote, getLevelTitle } from "@/lib/game-utils";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface CalendarData {
+  settings: CalendarSettings | null;
+  events: CalendarEvent[];
+  upcomingLectures: CalendarEvent[];
+  missingLectures: CalendarEvent[];
+  totalEvents: number;
+  lectureCount: number;
+}
 
 interface DashboardProps {
   userProfile: UserProfile;
@@ -27,6 +44,73 @@ export function Dashboard({
   onViewAchievements,
   onDeleteLecture,
 }: DashboardProps) {
+  const { toast } = useToast();
+  const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
+  const [calendarUrl, setCalendarUrl] = useState("");
+  
+  const { data: calendarData } = useQuery<CalendarData>({
+    queryKey: ["/api/calendar"],
+  });
+  
+  const setCalendarMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const response = await apiRequest("POST", "/api/calendar", { url });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
+      toast({
+        title: "Calendar connected",
+        description: data.message,
+      });
+      setCalendarDialogOpen(false);
+      setCalendarUrl("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to connect calendar",
+        description: error.message || "Please check the URL and try again",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const refreshCalendarMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/calendar/refresh", {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
+      toast({
+        title: "Calendar refreshed",
+        description: "Your calendar has been synced",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to refresh calendar",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const removeCalendarMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("DELETE", "/api/calendar");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
+      toast({
+        title: "Calendar removed",
+        description: "Your calendar integration has been disconnected",
+      });
+      setCalendarDialogOpen(false);
+    },
+  });
+
   const currentLevelXP = Math.pow(userProfile.level, 2) * 100;
   const nextLevelXP = xpForNextLevel(userProfile.level);
   const xpInLevel = userProfile.totalXP - currentLevelXP;
@@ -42,6 +126,26 @@ export function Dashboard({
 
   const lecturesNeedingReview = lectureHistory.filter((l) => l.needsReview);
   const hasReviewsDue = lecturesNeedingReview.length > 0;
+  
+  const hasCalendar = calendarData?.settings !== null;
+  const upcomingLectures = calendarData?.upcomingLectures || [];
+  const missingLectures = calendarData?.missingLectures || [];
+  
+  const formatEventDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return `Today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return `Tomorrow at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + 
+        ` at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -129,6 +233,94 @@ export function Dashboard({
           </section>
         )}
 
+        {missingLectures.length > 0 && (
+          <section className="animate-fade-in" aria-label="Missing Lectures">
+            <div className="flex items-start gap-4 p-6 rounded-xl bg-destructive/10 border border-destructive/30">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/20 flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-serif text-lg font-medium">
+                  {missingLectures.length} lecture{missingLectures.length !== 1 ? 's' : ''} missing materials
+                </h2>
+                <p className="text-muted-foreground mt-1">
+                  You attended these lectures but haven't uploaded study materials yet.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {missingLectures.slice(0, 3).map((event) => (
+                    <Button
+                      key={event.id}
+                      onClick={onStartUpload}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      data-testid={`button-upload-missing-${event.id}`}
+                    >
+                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                      {event.title}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {upcomingLectures.length > 0 && (
+          <section aria-label="Upcoming Lectures">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-serif text-2xl">Upcoming Lectures</h2>
+                <p className="text-muted-foreground mt-1">
+                  Your scheduled lectures for the next 7 days
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refreshCalendarMutation.mutate()}
+                disabled={refreshCalendarMutation.isPending}
+                className="gap-2"
+                data-testid="button-refresh-calendar"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshCalendarMutation.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
+                Refresh
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {upcomingLectures.map((event) => (
+                <div 
+                  key={event.id}
+                  className="flex items-center gap-4 p-4 rounded-xl bg-card border"
+                  data-testid={`calendar-event-${event.id}`}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
+                    <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{event.title}</p>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatEventDate(event.startsAt)}
+                      </span>
+                      {event.location && (
+                        <>
+                          <span>·</span>
+                          <span className="flex items-center gap-1 truncate">
+                            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                            {event.location}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section aria-label="Statistics">
           <h2 className="font-serif text-2xl mb-8">Your Progress</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-12 gap-y-8">
@@ -195,15 +387,33 @@ export function Dashboard({
                 {lectureHistory.length} lecture{lectureHistory.length !== 1 ? 's' : ''} uploaded
               </p>
             </div>
-            <Button
-              onClick={onStartUpload}
-              variant="outline"
-              className="gap-2"
-              data-testid="button-upload"
-            >
-              <Upload className="h-4 w-4" aria-hidden="true" />
-              Upload Lecture
-            </Button>
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => setCalendarDialogOpen(true)}
+                    variant="outline"
+                    size="icon"
+                    className={hasCalendar ? "text-primary" : ""}
+                    data-testid="button-calendar-settings"
+                  >
+                    <Calendar className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {hasCalendar ? "Calendar connected" : "Connect your lecture calendar"}
+                </TooltipContent>
+              </Tooltip>
+              <Button
+                onClick={onStartUpload}
+                variant="outline"
+                className="gap-2"
+                data-testid="button-upload"
+              >
+                <Upload className="h-4 w-4" aria-hidden="true" />
+                Upload Lecture
+              </Button>
+            </div>
           </div>
 
           {lectureHistory.length === 0 ? (
@@ -368,6 +578,100 @@ export function Dashboard({
           </section>
         )}
       </div>
+      
+      <Dialog open={calendarDialogOpen} onOpenChange={setCalendarDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif">
+              {hasCalendar ? "Calendar Settings" : "Connect Your Calendar"}
+            </DialogTitle>
+            <DialogDescription>
+              {hasCalendar 
+                ? "Manage your lecture calendar integration" 
+                : "Add your lecture calendar to track upcoming classes and identify missing materials"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          {hasCalendar ? (
+            <div className="space-y-6 pt-4">
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">Calendar Connected</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {calendarData?.lectureCount || 0} lectures found
+                  </p>
+                </div>
+              </div>
+              
+              {calendarData?.settings?.lastSync && (
+                <p className="text-sm text-muted-foreground">
+                  Last synced: {new Date(calendarData.settings.lastSync).toLocaleString()}
+                </p>
+              )}
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  onClick={() => refreshCalendarMutation.mutate()}
+                  disabled={refreshCalendarMutation.isPending}
+                  data-testid="button-dialog-refresh"
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshCalendarMutation.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
+                  Refresh
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1 gap-2"
+                  onClick={() => removeCalendarMutation.mutate()}
+                  disabled={removeCalendarMutation.isPending}
+                  data-testid="button-remove-calendar"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="calendar-url">Calendar Share Link</Label>
+                <Input
+                  id="calendar-url"
+                  placeholder="https://example.com/calendar/...learn.ics"
+                  value={calendarUrl}
+                  onChange={(e) => setCalendarUrl(e.target.value)}
+                  data-testid="input-calendar-url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Paste the ICS share link from your university calendar
+                </p>
+              </div>
+              
+              <Button
+                className="w-full gap-2"
+                onClick={() => setCalendarMutation.mutate(calendarUrl)}
+                disabled={!calendarUrl.trim() || setCalendarMutation.isPending}
+                data-testid="button-connect-calendar"
+              >
+                {setCalendarMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="h-4 w-4" aria-hidden="true" />
+                    Connect Calendar
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

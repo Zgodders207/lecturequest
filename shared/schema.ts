@@ -304,3 +304,35 @@ export const generateDailyQuizRequestSchema = z.object({
 
 export type GenerateQuizRequest = z.infer<typeof generateQuizRequestSchema>;
 export type GenerateDailyQuizRequest = z.infer<typeof generateDailyQuizRequestSchema>;
+
+// Calendar integration types
+export interface CalendarSettings {
+  url: string;
+  lastSync?: string;
+  lastSyncStatus?: "success" | "error";
+  lastSyncError?: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  uid: string;
+  title: string;
+  eventType: "lecture" | "workshop" | "tutorial" | "other";
+  startsAt: string;
+  endsAt: string;
+  location?: string;
+  description?: string;
+  matchedLectureId?: string;
+}
+
+export const calendarSettingsSchema = z.object({
+  url: z.string().url().refine(
+    (url) => url.startsWith("https://") && url.toLowerCase().includes(".ics"),
+    "Calendar URL must be a secure HTTPS link to an ICS file"
+  ),
+});
+
+export type CalendarSettingsInput = z.infer<typeof calendarSettingsSchema>;
+
+// Initial calendar settings
+export const INITIAL_CALENDAR_SETTINGS: CalendarSettings | null = null;

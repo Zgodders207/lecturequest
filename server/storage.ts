@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { UserProfile, Lecture, Achievement } from "@shared/schema";
+import type { UserProfile, Lecture, Achievement, CalendarSettings, CalendarEvent } from "@shared/schema";
 import { INITIAL_USER_PROFILE, ALL_ACHIEVEMENTS, DEMO_USER_PROFILE, DEMO_LECTURES } from "@shared/schema";
 
 function deepClone<T>(obj: T): T {
@@ -19,15 +19,27 @@ export interface IStorage {
   deleteLecture(id: string): boolean;
   
   getWeakTopics(): string[];
+  
+  getCalendarSettings(): CalendarSettings | null;
+  setCalendarSettings(settings: CalendarSettings): CalendarSettings;
+  clearCalendarSettings(): void;
+  
+  getCalendarEvents(): CalendarEvent[];
+  setCalendarEvents(events: CalendarEvent[]): CalendarEvent[];
+  updateCalendarEventMatch(eventId: string, lectureId: string | null): CalendarEvent | undefined;
 }
 
 export class MemStorage implements IStorage {
   private userProfile: UserProfile;
   private lectures: Lecture[];
+  private calendarSettings: CalendarSettings | null;
+  private calendarEvents: CalendarEvent[];
 
   constructor() {
     this.userProfile = deepClone(INITIAL_USER_PROFILE);
     this.lectures = [];
+    this.calendarSettings = null;
+    this.calendarEvents = [];
   }
 
   getUserProfile(): UserProfile {
@@ -152,6 +164,37 @@ export class MemStorage implements IStorage {
       .filter(([_, data]) => data.total / data.count > 30)
       .map(([topic]) => topic)
       .slice(0, 5);
+  }
+
+  getCalendarSettings(): CalendarSettings | null {
+    return this.calendarSettings ? deepClone(this.calendarSettings) : null;
+  }
+
+  setCalendarSettings(settings: CalendarSettings): CalendarSettings {
+    this.calendarSettings = deepClone(settings);
+    return this.getCalendarSettings()!;
+  }
+
+  clearCalendarSettings(): void {
+    this.calendarSettings = null;
+    this.calendarEvents = [];
+  }
+
+  getCalendarEvents(): CalendarEvent[] {
+    return deepClone(this.calendarEvents);
+  }
+
+  setCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
+    this.calendarEvents = deepClone(events);
+    return this.getCalendarEvents();
+  }
+
+  updateCalendarEventMatch(eventId: string, lectureId: string | null): CalendarEvent | undefined {
+    const index = this.calendarEvents.findIndex(e => e.id === eventId);
+    if (index === -1) return undefined;
+    
+    this.calendarEvents[index].matchedLectureId = lectureId ?? undefined;
+    return deepClone(this.calendarEvents[index]);
   }
 }
 

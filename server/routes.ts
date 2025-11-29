@@ -1,8 +1,18 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { createRequire } from "module";
+import { promises as dns } from "dns";
+import https from "https";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { storage } from "./storage";
+import { randomUUID } from "crypto";
+import type { CalendarEvent, CalendarSettings } from "@shared/schema";
+import { calendarSettingsSchema } from "@shared/schema";
+import type { VEvent } from "node-ical";
+
+const require = createRequire(import.meta.url);
+const nodeIcalModule = require("node-ical");
 
 async function parsePdf(buffer: Buffer): Promise<{ text: string }> {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -130,6 +140,314 @@ function cleanJsonResponse(text: string): string {
     .replace(/```json\n?/g, "")
     .replace(/```\n?/g, "")
     .trim();
+}
+
+function classifyEventType(summary: string, description?: string): "lecture" | "workshop" | "tutorial" | "other" {
+  const text = `${summary} ${description || ""}`.toLowerCase();
+  
+  if (text.includes("workshop")) return "workshop";
+  if (text.includes("tutorial") || text.includes("seminar")) return "tutorial";
+  if (text.includes("lab") || text.includes("practical")) return "other";
+  if (text.includes("lecture") || text.includes("lec")) return "lecture";
+  
+  const workshopPatterns = /\b(wkshp|works?hop)\b/i;
+  const tutorialPatterns = /\b(tut|tutorial|sem|seminar)\b/i;
+  
+  if (workshopPatterns.test(text)) return "workshop";
+  if (tutorialPatterns.test(text)) return "tutorial";
+  
+  return "lecture";
+}
+
+function isPrivateIP(ip: string): boolean {
+  const ipv4Private = [
+    /^127\./,
+    /^10\./,
+    /^172\.(1[6-9]|2\d|3[01])\./,
+    /^192\.168\./,
+    /^169\.254\./,
+    /^0\./,
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,
+    /^192\.0\.0\./,
+    /^192\.0\.2\./,
+    /^198\.18\./,
+    /^198\.19\./,
+    /^198\.51\.100\./,
+    /^203\.0\.113\./,
+    /^22[4-9]\./,
+    /^23\d\./,
+    /^24\d\./,
+    /^25[0-5]\./,
+  ];
+  
+  const ipv6Private = [
+    /^::1$/i,
+    /^::$/,
+    /^fc00:/i,
+    /^fd00:/i,
+    /^fe80:/i,
+    /^ff/i,
+    /^::ffff:127\./i,
+    /^::ffff:10\./i,
+    /^::ffff:172\.(1[6-9]|2\d|3[01])\./i,
+    /^::ffff:192\.168\./i,
+    /^::ffff:169\.254\./i,
+    /^::ffff:0\./i,
+    /^::ffff:100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./i,
+    /^::ffff:192\.0\.0\./i,
+    /^::ffff:192\.0\.2\./i,
+    /^::ffff:198\.18\./i,
+    /^::ffff:198\.19\./i,
+    /^::ffff:198\.51\.100\./i,
+    /^::ffff:203\.0\.113\./i,
+    /^::ffff:22[4-9]\./i,
+    /^::ffff:23\d\./i,
+    /^::ffff:24\d\./i,
+    /^::ffff:25[0-5]\./i,
+  ];
+  
+  return ipv4Private.some(p => p.test(ip)) || ipv6Private.some(p => p.test(ip));
+}
+
+function validateCalendarUrlBasic(urlString: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(urlString);
+    
+    if (url.protocol !== "https:") {
+      return { valid: false, error: "Only HTTPS URLs are allowed for security" };
+    }
+    
+    if (url.username || url.password) {
+      return { valid: false, error: "URLs with credentials are not allowed" };
+    }
+    
+    const pathname = url.pathname.toLowerCase();
+    const fullUrl = urlString.toLowerCase();
+    if (!pathname.includes(".ics") && !fullUrl.includes(".ics")) {
+      return { valid: false, error: "URL must be an ICS calendar feed" };
+    }
+    
+    const hostname = url.hostname.toLowerCase();
+    
+    const blockedHosts = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "internal", "intranet", "local"];
+    if (blockedHosts.some(h => hostname === h || hostname.endsWith("." + h))) {
+      return { valid: false, error: "Internal addresses are not allowed" };
+    }
+    
+    if (hostname.endsWith(".local") || hostname.endsWith(".internal") || hostname.endsWith(".localhost")) {
+      return { valid: false, error: "Local domain suffixes are not allowed" };
+    }
+    
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+      return { valid: false, error: "Direct IP addresses are not allowed. Please use a domain name." };
+    }
+    
+    if (/^\[.*\]$/.test(hostname)) {
+      return { valid: false, error: "IPv6 addresses are not allowed. Please use a domain name." };
+    }
+    
+    const suspiciousDomains = [".nip.io", ".sslip.io", ".xip.io", ".localtest.me"];
+    if (suspiciousDomains.some(d => hostname.endsWith(d))) {
+      return { valid: false, error: "This domain type is not allowed" };
+    }
+    
+    return { valid: true };
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
+}
+
+async function validateCalendarUrlWithDns(urlString: string): Promise<{ valid: boolean; error?: string }> {
+  const basicValidation = validateCalendarUrlBasic(urlString);
+  if (!basicValidation.valid) {
+    return basicValidation;
+  }
+  
+  try {
+    const url = new URL(urlString);
+    const hostname = url.hostname;
+    
+    const addresses = await dns.lookup(hostname, { all: true });
+    
+    for (const addr of addresses) {
+      if (isPrivateIP(addr.address)) {
+        return { valid: false, error: "Calendar URL resolves to a private network address" };
+      }
+    }
+    
+    return { valid: true };
+  } catch (error: any) {
+    if (error.code === "ENOTFOUND" || error.code === "ENODATA") {
+      return { valid: false, error: "Could not resolve calendar domain name" };
+    }
+    return { valid: false, error: "Failed to validate calendar URL" };
+  }
+}
+
+async function validateAndResolveUrl(urlString: string): Promise<{ valid: boolean; error?: string; address?: string; family?: number }> {
+  const basicValidation = validateCalendarUrlBasic(urlString);
+  if (!basicValidation.valid) {
+    return basicValidation;
+  }
+  
+  try {
+    const url = new URL(urlString);
+    const hostname = url.hostname;
+    
+    const addresses = await dns.lookup(hostname, { all: true });
+    
+    for (const addr of addresses) {
+      if (!isPrivateIP(addr.address)) {
+        return { valid: true, address: addr.address, family: addr.family };
+      }
+    }
+    
+    return { valid: false, error: "All resolved IPs are private/reserved" };
+  } catch (error: any) {
+    if (error.code === "ENOTFOUND" || error.code === "ENODATA") {
+      return { valid: false, error: "Could not resolve calendar domain name" };
+    }
+    return { valid: false, error: "Failed to validate calendar URL" };
+  }
+}
+
+async function safeFetchIcsContent(urlString: string, maxRedirects = 5): Promise<{ content: string; error?: string }> {
+  let currentUrl = urlString;
+  let redirectCount = 0;
+  
+  while (redirectCount < maxRedirects) {
+    const validation = await validateAndResolveUrl(currentUrl);
+    if (!validation.valid) {
+      return { content: "", error: validation.error };
+    }
+    
+    const validatedAddress = validation.address!;
+    const validatedFamily = validation.family!;
+    
+    const result = await new Promise<{ content: string; redirect?: string; error?: string }>((resolve) => {
+      const url = new URL(currentUrl);
+      
+      const customLookup: typeof dns.lookup = (
+        _hostname: string,
+        options: any,
+        callback: (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family?: number) => void
+      ) => {
+        if (typeof options === "function") {
+          callback = options;
+          options = {};
+        }
+        if (options && options.all) {
+          callback(null, [{ address: validatedAddress, family: validatedFamily }]);
+        } else {
+          callback(null, validatedAddress, validatedFamily);
+        }
+      };
+      
+      const options: https.RequestOptions = {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname + url.search,
+        method: "GET",
+        headers: {
+          "User-Agent": "LectureQuest/1.0",
+          "Accept": "text/calendar, */*",
+        },
+        timeout: 30000,
+        lookup: customLookup as any,
+      };
+      
+      const req = https.request(options, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          resolve({ content: "", redirect: res.headers.location });
+          return;
+        }
+        
+        if (res.statusCode && res.statusCode >= 400) {
+          resolve({ content: "", error: `HTTP error: ${res.statusCode}` });
+          return;
+        }
+        
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          const content = Buffer.concat(chunks).toString("utf-8");
+          resolve({ content });
+        });
+        res.on("error", (err) => resolve({ content: "", error: err.message }));
+      });
+      
+      req.on("error", (err) => resolve({ content: "", error: err.message }));
+      req.on("timeout", () => {
+        req.destroy();
+        resolve({ content: "", error: "Request timeout" });
+      });
+      
+      req.end();
+    });
+    
+    if (result.error) {
+      return { content: "", error: result.error };
+    }
+    
+    if (result.redirect) {
+      const absoluteUrl = new URL(result.redirect, currentUrl).toString();
+      currentUrl = absoluteUrl;
+      redirectCount++;
+      continue;
+    }
+    
+    return { content: result.content };
+  }
+  
+  return { content: "", error: "Too many redirects" };
+}
+
+async function fetchAndParseCalendar(url: string): Promise<{ events: CalendarEvent[]; error?: string }> {
+  try {
+    const { content, error: fetchError } = await safeFetchIcsContent(url);
+    if (fetchError) {
+      return { events: [], error: fetchError };
+    }
+    
+    const events = nodeIcalModule.parseICS(content);
+    const calendarEvents: CalendarEvent[] = [];
+    
+    for (const [key, event] of Object.entries(events)) {
+      const eventAny = event as any;
+      if (eventAny.type !== "VEVENT") continue;
+      
+      const vevent = event as VEvent;
+      const summary = vevent.summary || "Untitled Event";
+      const description = vevent.description || "";
+      
+      const eventType = classifyEventType(summary, description);
+      
+      const startDate = vevent.start;
+      const endDate = vevent.end;
+      
+      if (!startDate) continue;
+      
+      const calEvent: CalendarEvent = {
+        id: randomUUID(),
+        uid: vevent.uid || key,
+        title: summary,
+        eventType,
+        startsAt: startDate instanceof Date ? startDate.toISOString() : String(startDate),
+        endsAt: endDate instanceof Date ? endDate.toISOString() : (startDate instanceof Date ? startDate.toISOString() : String(startDate)),
+        location: vevent.location,
+        description: description.substring(0, 500),
+      };
+      
+      calendarEvents.push(calEvent);
+    }
+    
+    calendarEvents.sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+    
+    return { events: calendarEvents };
+  } catch (error: any) {
+    console.error("Calendar fetch error:", error);
+    return { events: [], error: error.message || "Failed to fetch calendar" };
+  }
 }
 
 function extractTitleFromText(text: string): string | null {
@@ -639,6 +957,173 @@ Important:
     } catch (error: any) {
       console.error("Error fetching weak topics:", error);
       res.status(500).json({ error: "Failed to fetch weak topics" });
+    }
+  });
+
+  app.get("/api/calendar", (req, res) => {
+    try {
+      const settings = storage.getCalendarSettings();
+      const events = storage.getCalendarEvents();
+      const lectures = storage.getLectures();
+      
+      const lecturesOnly = events.filter(e => e.eventType === "lecture");
+      
+      const now = new Date();
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      
+      const upcomingLectures = lecturesOnly.filter(e => {
+        const eventDate = new Date(e.startsAt);
+        return eventDate >= now && eventDate <= sevenDaysFromNow;
+      });
+      
+      const missingLectures = lecturesOnly.filter(e => {
+        const eventDate = new Date(e.startsAt);
+        if (eventDate >= now || eventDate < fourteenDaysAgo) return false;
+        
+        const eventDateStr = eventDate.toISOString().split("T")[0];
+        const matchingLecture = lectures.find(l => {
+          const lectureDate = l.date;
+          const titleWords = e.title.toLowerCase().split(/\s+/);
+          const lectureWords = l.title.toLowerCase().split(/\s+/);
+          const hasMatchingWords = titleWords.some(tw => 
+            lectureWords.some(lw => lw.includes(tw) || tw.includes(lw))
+          );
+          return lectureDate === eventDateStr || hasMatchingWords;
+        });
+        
+        return !matchingLecture && !e.matchedLectureId;
+      });
+      
+      res.json({
+        settings,
+        events: lecturesOnly,
+        upcomingLectures,
+        missingLectures,
+        totalEvents: events.length,
+        lectureCount: lecturesOnly.length,
+      });
+    } catch (error: any) {
+      console.error("Error fetching calendar:", error);
+      res.status(500).json({ error: "Failed to fetch calendar" });
+    }
+  });
+
+  app.post("/api/calendar", async (req, res) => {
+    try {
+      const parsed = calendarSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          error: "Invalid calendar URL", 
+          details: parsed.error.issues 
+        });
+      }
+      
+      const { url } = parsed.data;
+      
+      const urlValidation = await validateCalendarUrlWithDns(url);
+      if (!urlValidation.valid) {
+        return res.status(400).json({ 
+          error: urlValidation.error || "Invalid calendar URL"
+        });
+      }
+      
+      const { events, error } = await fetchAndParseCalendar(url);
+      
+      if (error) {
+        return res.status(400).json({ 
+          error: "Failed to fetch calendar",
+          details: error
+        });
+      }
+      
+      const settings: CalendarSettings = {
+        url,
+        lastSync: new Date().toISOString(),
+        lastSyncStatus: "success",
+      };
+      
+      storage.setCalendarSettings(settings);
+      storage.setCalendarEvents(events);
+      
+      const lecturesOnly = events.filter(e => e.eventType === "lecture");
+      
+      res.json({
+        success: true,
+        settings,
+        totalEvents: events.length,
+        lectureCount: lecturesOnly.length,
+        message: `Found ${lecturesOnly.length} lectures out of ${events.length} total events`,
+      });
+    } catch (error: any) {
+      console.error("Error setting calendar:", error);
+      res.status(500).json({ error: "Failed to set calendar" });
+    }
+  });
+
+  app.post("/api/calendar/refresh", async (req, res) => {
+    try {
+      const settings = storage.getCalendarSettings();
+      if (!settings) {
+        return res.status(400).json({ error: "No calendar configured" });
+      }
+      
+      const urlValidation = await validateCalendarUrlWithDns(settings.url);
+      if (!urlValidation.valid) {
+        storage.clearCalendarSettings();
+        return res.status(400).json({ 
+          error: "Stored calendar URL is invalid. Please reconnect your calendar."
+        });
+      }
+      
+      const { events, error } = await fetchAndParseCalendar(settings.url);
+      
+      if (error) {
+        const updatedSettings: CalendarSettings = {
+          ...settings,
+          lastSync: new Date().toISOString(),
+          lastSyncStatus: "error",
+          lastSyncError: error,
+        };
+        storage.setCalendarSettings(updatedSettings);
+        
+        return res.status(400).json({ 
+          error: "Failed to refresh calendar",
+          details: error
+        });
+      }
+      
+      const updatedSettings: CalendarSettings = {
+        ...settings,
+        lastSync: new Date().toISOString(),
+        lastSyncStatus: "success",
+        lastSyncError: undefined,
+      };
+      
+      storage.setCalendarSettings(updatedSettings);
+      storage.setCalendarEvents(events);
+      
+      const lecturesOnly = events.filter(e => e.eventType === "lecture");
+      
+      res.json({
+        success: true,
+        settings: updatedSettings,
+        totalEvents: events.length,
+        lectureCount: lecturesOnly.length,
+      });
+    } catch (error: any) {
+      console.error("Error refreshing calendar:", error);
+      res.status(500).json({ error: "Failed to refresh calendar" });
+    }
+  });
+
+  app.delete("/api/calendar", (req, res) => {
+    try {
+      storage.clearCalendarSettings();
+      res.json({ success: true, message: "Calendar removed" });
+    } catch (error: any) {
+      console.error("Error removing calendar:", error);
+      res.status(500).json({ error: "Failed to remove calendar" });
     }
   });
 
