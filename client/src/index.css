@@ -318,9 +318,13 @@
     100% { background-position: 100% 50%; }
   }
 
-  /* Gold accent for achievements/XP */
+  /* Gold accent for achievements/XP - uses CSS variable for dark mode */
   .gold-glow {
-    box-shadow: 0 0 20px hsl(var(--gold) / 0.3);
+    box-shadow: 0 0 16px hsl(var(--gold) / 0.25);
+  }
+  
+  .dark .gold-glow {
+    box-shadow: 0 0 20px hsl(var(--gold) / 0.4);
   }
 
   @keyframes gold-pulse {

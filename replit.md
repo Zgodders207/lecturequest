@@ -19,11 +19,13 @@ Preferred communication style: Simple, everyday language.
 **UI Framework**: Shadcn/ui component library built on Radix UI primitives with Tailwind CSS for styling
 
 **Styling Approach**: 
-- Nature-inspired sage green aesthetic with calming organic tones
-- Color palette based on: #F1F3E0, #D2DCB6, #A1BC98, #778873
-- Clean, minimal design with generous whitespace (max-w-5xl containers, py-12 spacing)
-- Simple stat cards without heavy icons
+- "Quiet luxury" aesthetic inspired by wisprflow.ai with editorial elegance
+- Color palette: Warm cream background (#FFFDF9), deep forest green primary (#034F46), soft lavender accents (#F0D7FF)
+- Typography: EB Garamond (serif) for headings, Figtree (sans-serif) for body text
+- Clean, minimal design with generous whitespace (max-w-5xl containers, py-16 spacing)
+- Elegant cards with subtle shadows and refined borders
 - Gold accents for XP/achievements, success color for high accuracy
+- Lucide icons for all iconography (no emojis)
 - Full design system defined in `design_guidelines.md` and `client/src/index.css`
 
 **State Management**: Local React state with no global state library. Application state managed in `client/src/pages/home.tsx` includes:

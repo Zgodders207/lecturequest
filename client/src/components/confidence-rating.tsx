@@ -48,7 +48,7 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
                 onMouseLeave={() => setHoveredRating(0)}
                 onFocus={() => setHoveredRating(value)}
                 onBlur={() => setHoveredRating(0)}
-                className="p-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200 hover:scale-110"
+                className="p-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-200"
                 role="radio"
                 aria-checked={rating === value}
                 aria-label={`${value} star${value > 1 ? "s" : ""}`}
