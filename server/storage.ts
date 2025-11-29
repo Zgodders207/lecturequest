@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { UserProfile, Lecture, Achievement, CalendarSettings, CalendarEvent } from "@shared/schema";
-import { INITIAL_USER_PROFILE, ALL_ACHIEVEMENTS, DEMO_USER_PROFILE, DEMO_LECTURES } from "@shared/schema";
+import { INITIAL_USER_PROFILE, ALL_ACHIEVEMENTS, DEMO_USER_PROFILE, DEMO_LECTURES, DEMO_CALENDAR_SETTINGS, DEMO_CALENDAR_EVENTS } from "@shared/schema";
 
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
@@ -10,7 +10,7 @@ export interface IStorage {
   getUserProfile(): UserProfile;
   updateUserProfile(profile: Partial<UserProfile>): UserProfile;
   resetUserProfile(): UserProfile;
-  loadDemoData(): { profile: UserProfile; lectures: Lecture[] };
+  loadDemoData(): { profile: UserProfile; lectures: Lecture[]; calendarSettings: CalendarSettings; calendarEvents: CalendarEvent[] };
   
   getLectures(): Lecture[];
   getLecture(id: string): Lecture | undefined;
@@ -100,12 +100,16 @@ export class MemStorage implements IStorage {
     return this.getUserProfile();
   }
 
-  loadDemoData(): { profile: UserProfile; lectures: Lecture[] } {
+  loadDemoData(): { profile: UserProfile; lectures: Lecture[]; calendarSettings: CalendarSettings; calendarEvents: CalendarEvent[] } {
     this.userProfile = deepClone(DEMO_USER_PROFILE);
     this.lectures = deepClone(DEMO_LECTURES);
+    this.calendarSettings = deepClone(DEMO_CALENDAR_SETTINGS);
+    this.calendarEvents = deepClone(DEMO_CALENDAR_EVENTS);
     return {
       profile: this.getUserProfile(),
       lectures: this.getLectures(),
+      calendarSettings: this.getCalendarSettings()!,
+      calendarEvents: this.getCalendarEvents(),
     };
   }
 

@@ -4,13 +4,14 @@ import {
   Zap, Flame, BookOpen, 
   Play, Upload, ChevronRight, Trash2, Bell,
   Target, Award, TrendingUp, Trophy, Clock,
-  Calendar, CalendarDays, AlertTriangle, RefreshCw, Settings, X, Loader2, MapPin, FileCheck
+  Calendar, CalendarDays, AlertTriangle, RefreshCw, Settings, X, Loader2, MapPin, FileCheck, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { UserProfile, Lecture, CalendarSettings, CalendarEvent } from "@shared/schema";
@@ -49,6 +50,7 @@ export function Dashboard({
   const { toast } = useToast();
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [calendarUrl, setCalendarUrl] = useState("");
+  const [demoDialogOpen, setDemoDialogOpen] = useState(false);
   
   const { data: calendarData } = useQuery<CalendarData>({
     queryKey: ["/api/calendar"],
@@ -110,6 +112,30 @@ export function Dashboard({
         description: "Your calendar integration has been disconnected",
       });
       setCalendarDialogOpen(false);
+    },
+  });
+
+  const demoModeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/profile/demo", {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
+      toast({
+        title: "Demo mode activated",
+        description: "Sample data has been loaded for demonstration",
+      });
+      setDemoDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to load demo",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
     },
   });
 
@@ -438,6 +464,21 @@ export function Dashboard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    onClick={() => setDemoDialogOpen(true)}
+                    variant="ghost"
+                    size="icon"
+                    data-testid="button-demo-mode"
+                  >
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Load sample data for demonstration
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
                     onClick={() => setCalendarDialogOpen(true)}
                     variant="outline"
                     size="icon"
@@ -719,6 +760,38 @@ export function Dashboard({
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={demoDialogOpen} onOpenChange={setDemoDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">Enter Demo Mode?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace your current data with sample lectures, achievements, and calendar events to demonstrate the app's features. Your existing data will be overwritten.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-demo-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => demoModeMutation.mutate()}
+              disabled={demoModeMutation.isPending}
+              className="gap-2"
+              data-testid="button-demo-confirm"
+            >
+              {demoModeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  Enter Demo Mode
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

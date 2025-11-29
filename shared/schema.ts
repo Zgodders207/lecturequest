@@ -213,73 +213,241 @@ export const INITIAL_USER_PROFILE: UserProfile = {
   },
 };
 
-// Demo profile for testing
+// Demo profile for testing - looks like an actively used account
 export const DEMO_USER_PROFILE: UserProfile = {
-  level: 4,
-  totalXP: 850,
-  xpToNextLevel: 2500,
-  currentStreak: 3,
-  longestStreak: 7,
-  totalLectures: 2,
-  averageConfidence: 3.5,
+  level: 5,
+  totalXP: 2650,
+  xpToNextLevel: 3600,
+  currentStreak: 7,
+  longestStreak: 12,
+  totalLectures: 7,
+  averageConfidence: 3.8,
   achievements: ALL_ACHIEVEMENTS.map((a) => {
     if (a.id === "first_steps") {
-      return { ...a, unlocked: true, unlockedDate: "2025-01-15", progress: 1 };
+      return { ...a, unlocked: true, unlockedDate: "2025-11-10", progress: 1 };
     }
     if (a.id === "quick_learner") {
-      return { ...a, unlocked: true, unlockedDate: "2025-01-16", progress: 1 };
+      return { ...a, unlocked: true, unlockedDate: "2025-11-12", progress: 1 };
     }
     if (a.id === "dedicated_student") {
-      return { ...a, progress: 2 };
+      return { ...a, unlocked: true, unlockedDate: "2025-11-20", progress: 5 };
     }
     if (a.id === "week_warrior") {
+      return { ...a, unlocked: true, unlockedDate: "2025-11-25", progress: 7 };
+    }
+    if (a.id === "early_bird") {
+      return { ...a, unlocked: true, unlockedDate: "2025-11-15", progress: 1 };
+    }
+    if (a.id === "perfectionist") {
       return { ...a, progress: 3 };
+    }
+    if (a.id === "knowledge_seeker") {
+      return { ...a, progress: 7 };
+    }
+    if (a.id === "topic_master") {
+      return { ...a, progress: 2 };
     }
     return { ...a };
   }),
-  masteredTopics: ["Arrays", "Basic Loops"],
-  needsPractice: ["Linked Lists", "Queue Operations"],
+  masteredTopics: ["Variables", "Loops", "Functions", "Arrays"],
+  needsPractice: ["Recursion", "Binary Trees"],
   powerUps: {
-    secondChance: 2,
-    hints: 1,
-    doubleXP: false,
+    secondChance: 3,
+    hints: 2,
+    doubleXP: true,
   },
+  lastActivityDate: new Date().toISOString().split('T')[0],
 };
 
-// Demo lectures
+// Demo lectures - variety of subjects and scores
 export const DEMO_LECTURES: Lecture[] = [
   {
     id: "demo-1",
-    title: "Introduction to Data Structures",
-    date: "2025-01-15",
-    content: "Arrays, Linked Lists, Stacks, and Queues are fundamental data structures...",
-    reviewScore: 85,
-    xpEarned: 120,
-    incorrectTopics: ["Linked Lists"],
-    confidenceRating: 4,
+    title: "Introduction to Programming",
+    date: "2025-11-10",
+    content: "Variables, data types, operators, and basic input/output operations form the foundation of programming...",
+    reviewScore: 92,
+    xpEarned: 145,
+    incorrectTopics: [],
+    confidenceRating: 5,
     dailyQuizzes: [
-      {
-        date: "2025-01-16",
-        score: 80,
-        xpEarned: 45,
-        improvement: -5,
-      },
+      { date: "2025-11-11", score: 95, xpEarned: 52, improvement: 3 },
+      { date: "2025-11-15", score: 100, xpEarned: 60, improvement: 5 },
     ],
-    needsReview: true,
-    lastReviewed: "2025-01-15",
+    needsReview: false,
+    lastReviewed: "2025-11-15",
   },
   {
     id: "demo-2",
-    title: "Algorithm Complexity",
-    date: "2025-01-18",
-    content: "Big O notation, time complexity, space complexity...",
-    reviewScore: 70,
-    xpEarned: 95,
-    incorrectTopics: ["Queue Operations", "Space Complexity"],
+    title: "Control Flow & Loops",
+    date: "2025-11-12",
+    content: "If statements, switch cases, for loops, while loops, and nested control structures...",
+    reviewScore: 88,
+    xpEarned: 130,
+    incorrectTopics: ["Nested Loops"],
+    confidenceRating: 4,
+    dailyQuizzes: [
+      { date: "2025-11-13", score: 85, xpEarned: 48, improvement: -3 },
+      { date: "2025-11-18", score: 90, xpEarned: 55, improvement: 5 },
+    ],
+    needsReview: false,
+    lastReviewed: "2025-11-18",
+  },
+  {
+    id: "demo-3",
+    title: "Functions & Modular Design",
+    date: "2025-11-15",
+    content: "Function declarations, parameters, return values, scope, and modular programming principles...",
+    reviewScore: 78,
+    xpEarned: 110,
+    incorrectTopics: ["Recursion", "Scope"],
+    confidenceRating: 3,
+    dailyQuizzes: [
+      { date: "2025-11-16", score: 72, xpEarned: 42, improvement: -6 },
+    ],
+    needsReview: true,
+    lastReviewed: "2025-11-16",
+  },
+  {
+    id: "demo-4",
+    title: "Arrays & Collections",
+    date: "2025-11-18",
+    content: "Array declaration, indexing, iteration, multi-dimensional arrays, and common array algorithms...",
+    reviewScore: 85,
+    xpEarned: 125,
+    incorrectTopics: ["2D Arrays"],
+    confidenceRating: 4,
+    dailyQuizzes: [
+      { date: "2025-11-20", score: 88, xpEarned: 50, improvement: 3 },
+    ],
+    needsReview: false,
+    lastReviewed: "2025-11-20",
+  },
+  {
+    id: "demo-5",
+    title: "Object-Oriented Programming",
+    date: "2025-11-20",
+    content: "Classes, objects, inheritance, polymorphism, encapsulation, and abstraction principles...",
+    reviewScore: 72,
+    xpEarned: 100,
+    incorrectTopics: ["Polymorphism", "Abstract Classes"],
     confidenceRating: 3,
     dailyQuizzes: [],
     needsReview: true,
-    lastReviewed: "2025-01-18",
+    lastReviewed: "2025-11-20",
+  },
+  {
+    id: "demo-6",
+    title: "Data Structures Fundamentals",
+    date: "2025-11-25",
+    content: "Linked lists, stacks, queues, and their implementations using arrays and pointers...",
+    reviewScore: 65,
+    xpEarned: 90,
+    incorrectTopics: ["Binary Trees", "Tree Traversal"],
+    confidenceRating: 2,
+    dailyQuizzes: [],
+    needsReview: true,
+    lastReviewed: "2025-11-25",
+  },
+  {
+    id: "demo-7",
+    title: "Algorithm Analysis",
+    date: "2025-11-28",
+    content: "Big O notation, time complexity, space complexity, best/worst/average case analysis...",
+    reviewScore: 80,
+    xpEarned: 115,
+    incorrectTopics: ["Amortized Analysis"],
+    confidenceRating: 4,
+    dailyQuizzes: [],
+    needsReview: false,
+    lastReviewed: "2025-11-28",
+  },
+];
+
+// Demo calendar settings
+export const DEMO_CALENDAR_SETTINGS: CalendarSettings = {
+  url: "https://demo.university.edu/calendar/demo.ics",
+  lastSync: new Date().toISOString(),
+  lastSyncStatus: "success",
+};
+
+// Helper to generate dates relative to today
+function getDemoDate(daysFromNow: number, hour: number = 9, minute: number = 0): string {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  date.setHours(hour, minute, 0, 0);
+  return date.toISOString();
+}
+
+// Demo calendar events - mix of lectures and exams
+export const DEMO_CALENDAR_EVENTS: CalendarEvent[] = [
+  {
+    id: "cal-demo-1",
+    uid: "demo-lecture-1",
+    title: "KF4005: Computer Networks - Lecture",
+    eventType: "lecture",
+    startsAt: getDemoDate(1, 9, 0),
+    endsAt: getDemoDate(1, 11, 0),
+    location: "Room 201, Computer Science Building",
+    description: "Introduction to network protocols",
+  },
+  {
+    id: "cal-demo-2",
+    uid: "demo-lecture-2",
+    title: "KF5008: Database Systems - Lecture",
+    eventType: "lecture",
+    startsAt: getDemoDate(2, 14, 0),
+    endsAt: getDemoDate(2, 16, 0),
+    location: "Room 105, Engineering Block",
+    description: "SQL and relational databases",
+  },
+  {
+    id: "cal-demo-3",
+    uid: "demo-exam-1",
+    title: "Quiz: Programming Fundamentals",
+    eventType: "exam",
+    startsAt: getDemoDate(3, 23, 59),
+    endsAt: getDemoDate(3, 23, 59),
+    description: "Online quiz due by midnight",
+  },
+  {
+    id: "cal-demo-4",
+    uid: "demo-tutorial-1",
+    title: "KF4005: Networks Tutorial",
+    eventType: "tutorial",
+    startsAt: getDemoDate(3, 10, 0),
+    endsAt: getDemoDate(3, 11, 0),
+    location: "Lab 3, Computer Science Building",
+  },
+  {
+    id: "cal-demo-5",
+    uid: "demo-lecture-3",
+    title: "KF5010: Software Engineering - Lecture",
+    eventType: "lecture",
+    startsAt: getDemoDate(4, 11, 0),
+    endsAt: getDemoDate(4, 13, 0),
+    location: "Room 302, Main Building",
+    description: "Agile methodologies and project management",
+  },
+  {
+    id: "cal-demo-6",
+    uid: "demo-exam-2",
+    title: "Test: Data Structures Midterm",
+    eventType: "exam",
+    startsAt: getDemoDate(5, 14, 0),
+    endsAt: getDemoDate(5, 16, 0),
+    location: "Examination Hall A",
+    description: "Covers chapters 1-5",
+  },
+  {
+    id: "cal-demo-7",
+    uid: "demo-lecture-4",
+    title: "KF4009: Operating Systems - Lecture",
+    eventType: "lecture",
+    startsAt: getDemoDate(6, 9, 0),
+    endsAt: getDemoDate(6, 11, 0),
+    location: "Room 201, Computer Science Building",
+    description: "Process scheduling and memory management",
   },
 ];
 
