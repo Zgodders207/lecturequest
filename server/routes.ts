@@ -226,7 +226,9 @@ function validateCalendarUrlBasic(urlString: string): { valid: boolean; error?: 
     
     const pathname = url.pathname.toLowerCase();
     const fullUrl = urlString.toLowerCase();
-    if (!pathname.includes(".ics") && !fullUrl.includes(".ics")) {
+    const isIcsFile = pathname.includes(".ics") || fullUrl.includes(".ics");
+    const isIcalEndpoint = pathname.includes("/ical") || pathname.includes("/calendar");
+    if (!isIcsFile && !isIcalEndpoint) {
       return { valid: false, error: "URL must be an ICS calendar feed" };
     }
     
