@@ -51,6 +51,28 @@ Preferred communication style: Simple, everyday language.
 **API Structure**: RESTful endpoints defined in `server/routes.ts`:
 - `POST /api/generate-quiz` - Generates quiz from lecture content
 - `POST /api/generate-daily-quiz` - Creates personalized daily quizzes based on weak topics
+- `POST /api/calendar` - Connects and syncs ICS calendar feed
+- `GET /api/calendar/events` - Retrieves cached calendar events
+- `DELETE /api/calendar` - Disconnects calendar
+
+### Calendar Integration
+
+**ICS Feed Parsing**: Uses node-ical to parse ICS calendar feeds from academic calendars
+
+**Security Features** (SSRF Protection):
+- HTTPS-only URL requirement
+- DNS resolution validation before connection
+- Private IP range blocking (IPv4 and IPv6 loopback, private, link-local, CGNAT, multicast, reserved)
+- Custom DNS lookup function to prevent DNS rebinding attacks
+- Redirect validation with per-hop DNS verification (max 5 redirects)
+- Blocks suspicious domains (.nip.io, .sslip.io, .xip.io, .localtest.me, .local, .internal)
+- Direct IP addresses not allowed (must use domain names)
+
+**Event Classification**: Automatically classifies events as lectures, labs, tutorials, exams, or other based on title keywords
+
+**Dashboard Integration**:
+- Upcoming Lectures: Shows next 7 days of scheduled events
+- Missing Lectures: Identifies attended lectures without uploaded materials (14-day lookback)
 
 **Request Validation**: Zod schemas for type-safe request validation
 
