@@ -327,8 +327,13 @@ export interface CalendarEvent {
 
 export const calendarSettingsSchema = z.object({
   url: z.string().url().refine(
-    (url) => url.startsWith("https://") && url.toLowerCase().includes(".ics"),
-    "Calendar URL must be a secure HTTPS link to an ICS file"
+    (url) => {
+      if (!url.startsWith("https://")) return false;
+      const lowerUrl = url.toLowerCase();
+      const pathname = new URL(url).pathname.toLowerCase();
+      return lowerUrl.includes(".ics") || pathname.includes("/ical") || pathname.includes("/calendar");
+    },
+    "Calendar URL must be a secure HTTPS link to a calendar feed"
   ),
 });
 
