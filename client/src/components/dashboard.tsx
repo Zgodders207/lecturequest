@@ -151,6 +151,7 @@ export function Dashboard({
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
       queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/daily-quiz/status"] });
       toast({
         title: "Demo mode activated",
         description: "Sample data has been loaded for demonstration",
