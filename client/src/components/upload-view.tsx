@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, FileText, AlertCircle, Sparkles, ArrowLeft, Check, Loader2 } from "lucide-react";
+import { Upload, FileText, AlertCircle, ArrowLeft, Check, Loader2, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,13 +8,34 @@ import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 
 interface UploadViewProps {
-  onUpload: (content: string, title: string) => void;
+  onSave: (content: string, title: string) => void;
   onBack: () => void;
-  isLoading: boolean;
+  isSaving: boolean;
   error: string | null;
 }
 
-export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewProps) {
+function extractTitleFromContent(content: string): string {
+  const lines = content.split("\n").filter(line => line.trim().length > 0);
+  
+  for (const line of lines.slice(0, 5)) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("#")) {
+      return trimmed.replace(/^#+\s*/, "").slice(0, 100);
+    }
+  }
+  
+  for (const line of lines.slice(0, 3)) {
+    const trimmed = line.trim();
+    if (trimmed.length > 10 && trimmed.length < 150 && !trimmed.includes("\t")) {
+      return trimmed.slice(0, 100);
+    }
+  }
+  
+  const firstLine = lines[0]?.trim() || "";
+  return firstLine.slice(0, 100) || "Untitled Lecture";
+}
+
+export function UploadView({ onSave, onBack, isSaving, error }: UploadViewProps) {
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileType, setFileType] = useState<string | null>(null);
@@ -62,7 +82,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
       reader.onload = (e) => {
         const text = e.target?.result as string;
         setContent(text);
-        const extractedTitle = text.split("\n")[0]?.slice(0, 100) || file.name.replace(".txt", "");
+        const extractedTitle = extractTitleFromContent(text);
         setTitle(extractedTitle);
       };
       reader.readAsText(file);
@@ -86,7 +106,8 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
               setParseError(result.error);
             } else {
               setContent(result.text);
-              setTitle(result.title || file.name.replace(/\.[^/.]+$/, ""));
+              const extractedTitle = result.title || extractTitleFromContent(result.text);
+              setTitle(extractedTitle);
             }
           } catch (err: any) {
             console.error("Parse error:", err);
@@ -119,9 +140,18 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
     }
   }, [processFile]);
 
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = e.target.value;
+    setContent(newContent);
+    if (!title || title === "Untitled Lecture") {
+      const extractedTitle = extractTitleFromContent(newContent);
+      setTitle(extractedTitle);
+    }
+  };
+
   const handleSubmit = () => {
     if (content.trim().length >= 50 && title.trim()) {
-      onUpload(content.trim(), title.trim());
+      onSave(content.trim(), title.trim());
     }
   };
 
@@ -163,7 +193,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
         <div className="space-y-3 mb-10">
           <h1 className="font-serif text-display-sm tracking-tight">Upload Lecture</h1>
           <p className="text-lg text-muted-foreground leading-relaxed">
-            Upload your study materials to generate a personalized quiz and earn XP.
+            Add your study materials to your library. You can review them anytime.
           </p>
         </div>
 
@@ -272,6 +302,9 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
                 className="rounded-xl h-12"
                 data-testid="input-title"
               />
+              <p className="text-xs text-muted-foreground">
+                Auto-extracted from your content. You can edit it.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -285,7 +318,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
                 id="lecture-content"
                 placeholder="Paste or type your lecture notes here..."
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={handleContentChange}
                 className="min-h-[180px] resize-y rounded-xl"
                 data-testid="input-content"
               />
@@ -306,26 +339,26 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
 
           <Button
             onClick={handleSubmit}
-            disabled={!canSubmit || isLoading || isParsing}
+            disabled={!canSubmit || isSaving || isParsing}
             className="w-full rounded-xl"
             size="lg"
-            data-testid="button-generate-quiz"
+            data-testid="button-save-lecture"
           >
-            {isLoading ? (
+            {isSaving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Generating Quiz...
+                Saving...
               </>
             ) : (
               <>
-                <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
-                Generate Quiz
+                <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+                Save to Library
               </>
             )}
           </Button>
 
-          <p className="text-center text-muted-foreground">
-            Complete the quiz to earn 50+ XP
+          <p className="text-center text-muted-foreground text-sm">
+            After saving, you can review this lecture anytime from your dashboard.
           </p>
         </div>
       </div>

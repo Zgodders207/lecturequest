@@ -88,6 +88,18 @@ const addLectureSchema = z.object({
     xpEarned: z.number(),
     improvement: z.number(),
   })),
+  needsReview: z.boolean(),
+  lastReviewed: z.string().optional(),
+});
+
+const updateLectureSchema = z.object({
+  title: z.string().optional(),
+  reviewScore: z.number().optional(),
+  xpEarned: z.number().optional(),
+  incorrectTopics: z.array(z.string()).optional(),
+  confidenceRating: z.number().optional(),
+  needsReview: z.boolean().optional(),
+  lastReviewed: z.string().optional(),
 });
 
 function cleanJsonResponse(text: string): string {
@@ -484,6 +496,27 @@ Important:
     } catch (error: any) {
       console.error("Error adding lecture:", error);
       res.status(500).json({ error: "Failed to add lecture" });
+    }
+  });
+
+  app.patch("/api/lectures/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const parsed = updateLectureSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          error: "Invalid request", 
+          details: parsed.error.issues 
+        });
+      }
+      const updatedLecture = storage.updateLecture(id, parsed.data);
+      if (!updatedLecture) {
+        return res.status(404).json({ error: "Lecture not found" });
+      }
+      res.json(updatedLecture);
+    } catch (error: any) {
+      console.error("Error updating lecture:", error);
+      res.status(500).json({ error: "Failed to update lecture" });
     }
   });
 

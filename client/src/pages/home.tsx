@@ -26,11 +26,12 @@ import type {
 } from "@shared/schema";
 import { INITIAL_USER_PROFILE } from "@shared/schema";
 
-type ViewType = "dashboard" | "upload" | "quiz" | "results" | "confidence" | "daily" | "achievements";
+type ViewType = "dashboard" | "upload" | "quiz" | "results" | "confidence" | "achievements";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
   const [currentQuiz, setCurrentQuiz] = useState<Question[]>([]);
+  const [currentLectureId, setCurrentLectureId] = useState<string | null>(null);
   const [currentLectureTitle, setCurrentLectureTitle] = useState("");
   const [currentLectureContent, setCurrentLectureContent] = useState("");
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
@@ -41,8 +42,6 @@ export default function Home() {
   const [pendingAchievements, setPendingAchievements] = useState<Achievement[]>([]);
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
   const [perfectScoresCount, setPerfectScoresCount] = useState(0);
-  const [isDaily, setIsDaily] = useState(false);
-  const [previousDailyScore, setPreviousDailyScore] = useState<number | undefined>();
 
   const { data: userProfile = INITIAL_USER_PROFILE } = useQuery<UserProfile>({
     queryKey: ["/api/profile"],
@@ -73,9 +72,9 @@ export default function Home() {
     },
   });
 
-  const deleteLectureMutation = useMutation({
-    mutationFn: async (lectureId: string) => {
-      const response = await apiRequest("DELETE", `/api/lectures/${lectureId}`);
+  const updateLectureMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Lecture> }) => {
+      const response = await apiRequest("PATCH", `/api/lectures/${id}`, data);
       return response.json();
     },
     onSuccess: () => {
@@ -83,15 +82,13 @@ export default function Home() {
     },
   });
 
-  const loadDemoMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/profile/demo", {});
+  const deleteLectureMutation = useMutation({
+    mutationFn: async (lectureId: string) => {
+      const response = await apiRequest("DELETE", `/api/lectures/${lectureId}`);
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
-      setPerfectScoresCount(1);
     },
   });
 
@@ -106,35 +103,36 @@ export default function Home() {
     },
   });
 
-  const generateDailyQuizMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/generate-daily-quiz", {
-        weakTopics: userProfile.needsPractice,
-        previousScore: lectureHistory.length > 0 
-          ? Math.round(lectureHistory.reduce((sum, l) => sum + l.reviewScore, 0) / lectureHistory.length)
-          : 50,
-        confidenceLevel: userProfile.averageConfidence || 3,
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setCurrentQuiz(data.questions);
-      setIsDaily(true);
-      setPreviousDailyScore(
-        lectureHistory.length > 0
-          ? Math.round(lectureHistory.reduce((sum, l) => sum + l.reviewScore, 0) / lectureHistory.length)
-          : undefined
-      );
-      setCurrentView("quiz");
-    },
-  });
+  const handleSaveLecture = useCallback((content: string, title: string) => {
+    const lecture: Omit<Lecture, "id"> = {
+      title,
+      date: new Date().toISOString().split("T")[0],
+      content,
+      reviewScore: 0,
+      xpEarned: 0,
+      incorrectTopics: [],
+      confidenceRating: 0,
+      dailyQuizzes: [],
+      needsReview: true,
+      lastReviewed: undefined,
+    };
 
-  const handleUpload = useCallback((content: string, title: string) => {
-    setCurrentLectureTitle(title);
-    setCurrentLectureContent(content);
-    setIsDaily(false);
-    generateQuizMutation.mutate({ content, title });
-  }, [generateQuizMutation]);
+    addLectureMutation.mutate(lecture, {
+      onSuccess: () => {
+        setCurrentView("dashboard");
+      },
+    });
+  }, [addLectureMutation]);
+
+  const handleStartReview = useCallback((lectureId: string) => {
+    const lecture = lectureHistory.find((l) => l.id === lectureId);
+    if (!lecture) return;
+
+    setCurrentLectureId(lectureId);
+    setCurrentLectureTitle(lecture.title);
+    setCurrentLectureContent(lecture.content);
+    generateQuizMutation.mutate({ content: lecture.content, title: lecture.title });
+  }, [lectureHistory, generateQuizMutation]);
 
   const handleQuizComplete = useCallback((answers: { questionIndex: number; selectedAnswer: number; isCorrect: boolean }[]) => {
     const correctCount = answers.filter((a) => a.isCorrect).length;
@@ -151,7 +149,9 @@ export default function Home() {
     });
     const uniqueIncorrectTopics = Array.from(new Set(incorrectTopics)).slice(0, 5);
 
-    const isImprovement = isDaily && previousDailyScore !== undefined && accuracyPercent > previousDailyScore;
+    const existingLecture = currentLectureId ? lectureHistory.find((l) => l.id === currentLectureId) : null;
+    const previousScore = existingLecture?.reviewScore || 0;
+    const isImprovement = previousScore > 0 && accuracyPercent > previousScore;
     
     const xpEarned = calculateXP(
       correctCount,
@@ -279,25 +279,24 @@ export default function Home() {
     if (calculatedNewLevel > oldLevel) {
       setTimeout(() => setShowLevelUp(true), 500);
     }
-  }, [currentQuiz, userProfile, lectureHistory, perfectScoresCount, isDaily, previousDailyScore, updateProfileMutation]);
+  }, [currentQuiz, currentLectureId, userProfile, lectureHistory, perfectScoresCount, updateProfileMutation]);
 
   const handleConfidenceSubmit = useCallback((rating: number) => {
     const confidenceXP = rating * 5;
 
-    const lecture: Omit<Lecture, "id"> = {
-      title: currentLectureTitle,
-      date: new Date().toISOString().split("T")[0],
-      content: currentLectureContent,
-      reviewScore: quizResult?.accuracyPercent || 0,
-      xpEarned: (quizResult?.xpEarned || 0) + confidenceXP,
-      incorrectTopics: weakTopics.slice(),
-      confidenceRating: rating,
-      dailyQuizzes: [],
-      needsReview: false,
-      lastReviewed: new Date().toISOString(),
-    };
-
-    addLectureMutation.mutate(lecture);
+    if (currentLectureId) {
+      updateLectureMutation.mutate({
+        id: currentLectureId,
+        data: {
+          reviewScore: quizResult?.accuracyPercent || 0,
+          xpEarned: (quizResult?.xpEarned || 0) + confidenceXP,
+          incorrectTopics: weakTopics.slice(),
+          confidenceRating: rating,
+          needsReview: false,
+          lastReviewed: new Date().toISOString(),
+        },
+      });
+    }
 
     const newTotalXP = userProfile.totalXP + confidenceXP;
     const newLevelCalc = calculateLevel(newTotalXP);
@@ -321,7 +320,7 @@ export default function Home() {
     const tempProfile: UserProfile = { ...userProfile, ...profileUpdate };
     const unlockedAchievements = checkAchievements(
       tempProfile,
-      [...lectureHistory, { ...lecture, id: "temp" }],
+      lectureHistory,
       new Date().getHours(),
       perfectScoresCount
     );
@@ -334,21 +333,8 @@ export default function Home() {
     setQuizResult(null);
     setCurrentQuiz([]);
     setWeakTopics([]);
-  }, [currentLectureTitle, currentLectureContent, quizResult, weakTopics, userProfile, lectureHistory, perfectScoresCount, addLectureMutation, updateProfileMutation]);
-
-  const handleDailyQuizComplete = useCallback(() => {
-    if (!quizResult) return;
-
-    setCurrentView("dashboard");
-    setQuizResult(null);
-    setCurrentQuiz([]);
-    setIsDaily(false);
-    setPreviousDailyScore(undefined);
-  }, [quizResult]);
-
-  const handleLoadDemo = useCallback(() => {
-    loadDemoMutation.mutate();
-  }, [loadDemoMutation]);
+    setCurrentLectureId(null);
+  }, [currentLectureId, quizResult, weakTopics, userProfile, lectureHistory, perfectScoresCount, updateLectureMutation, updateProfileMutation]);
 
   const handleUseHint = useCallback(() => {
     const updatedPowerUps = {
@@ -379,10 +365,10 @@ export default function Home() {
       case "upload":
         return (
           <UploadView
-            onUpload={handleUpload}
+            onSave={handleSaveLecture}
             onBack={() => setCurrentView("dashboard")}
-            isLoading={generateQuizMutation.isPending}
-            error={generateQuizMutation.error?.message || null}
+            isSaving={addLectureMutation.isPending}
+            error={addLectureMutation.error?.message || null}
           />
         );
 
@@ -395,7 +381,7 @@ export default function Home() {
             onComplete={handleQuizComplete}
             onUseHint={handleUseHint}
             onUseSecondChance={handleUseSecondChance}
-            isDaily={isDaily}
+            isDaily={false}
           />
         );
 
@@ -404,15 +390,8 @@ export default function Home() {
           <QuizResults
             result={quizResult}
             newAchievements={newAchievements}
-            onContinue={() => {
-              if (isDaily) {
-                handleDailyQuizComplete();
-              } else {
-                setCurrentView("confidence");
-              }
-            }}
-            isDaily={isDaily}
-            previousScore={previousDailyScore}
+            onContinue={() => setCurrentView("confidence")}
+            isDaily={false}
           />
         ) : null;
 
@@ -432,7 +411,6 @@ export default function Home() {
           />
         );
 
-      case "daily":
       case "dashboard":
       default:
         return (
@@ -440,8 +418,7 @@ export default function Home() {
             userProfile={userProfile}
             lectureHistory={lectureHistory}
             onStartUpload={() => setCurrentView("upload")}
-            onStartDailyQuiz={() => generateDailyQuizMutation.mutate()}
-            onLoadDemo={handleLoadDemo}
+            onStartReview={handleStartReview}
             onViewAchievements={() => setCurrentView("achievements")}
             onDeleteLecture={(id) => deleteLectureMutation.mutate(id)}
           />
