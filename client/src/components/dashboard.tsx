@@ -30,6 +30,27 @@ interface CalendarData {
   examCount: number;
 }
 
+interface DailyQuizStatus {
+  hasDueTopics: boolean;
+  dueTopicsCount: number;
+  totalTopicsTracked: number;
+  dueTopics: {
+    topic: string;
+    lectureTitle: string;
+    lastScore: number;
+    daysSinceReview: number;
+    streak: number;
+    isOverdue: boolean;
+  }[];
+  currentPlan: {
+    id: string;
+    topicsCount: number;
+    generatedAt: string;
+    completed: boolean;
+  } | null;
+  weeklyStreak: number;
+}
+
 interface DashboardProps {
   userProfile: UserProfile;
   lectureHistory: Lecture[];
@@ -37,6 +58,7 @@ interface DashboardProps {
   onStartReview: (lectureId: string) => void;
   onViewAchievements: () => void;
   onDeleteLecture?: (id: string) => void;
+  onStartDailyQuiz?: () => void;
 }
 
 export function Dashboard({
@@ -46,6 +68,7 @@ export function Dashboard({
   onStartReview,
   onViewAchievements,
   onDeleteLecture,
+  onStartDailyQuiz,
 }: DashboardProps) {
   const { toast } = useToast();
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
@@ -54,6 +77,10 @@ export function Dashboard({
   
   const { data: calendarData } = useQuery<CalendarData>({
     queryKey: ["/api/calendar"],
+  });
+  
+  const { data: dailyQuizStatus } = useQuery<DailyQuizStatus>({
+    queryKey: ["/api/daily-quiz/status"],
   });
   
   const setCalendarMutation = useMutation({
@@ -256,6 +283,68 @@ export function Dashboard({
                       {lecture.title}
                     </Button>
                   ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {dailyQuizStatus?.hasDueTopics && onStartDailyQuiz && (
+          <section className="animate-fade-in" aria-label="Daily Quiz">
+            <div className="flex items-start gap-4 p-6 rounded-xl bg-primary/10 border border-primary/30">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 flex-shrink-0">
+                <Target className="h-5 w-5 text-primary" aria-hidden="true" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="font-serif text-lg font-medium">
+                    Daily Quiz Ready
+                  </h2>
+                  <Badge variant="secondary" className="bg-primary/20 text-primary border-0">
+                    {dailyQuizStatus.dueTopicsCount} topic{dailyQuizStatus.dueTopicsCount !== 1 ? 's' : ''} due
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground mt-1">
+                  Practice topics using active recall to strengthen long-term memory.
+                </p>
+                {dailyQuizStatus.dueTopics.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    {dailyQuizStatus.dueTopics.slice(0, 3).map((topic, i) => (
+                      <div key={i} className="text-sm flex items-center gap-2">
+                        <span className={topic.isOverdue ? "text-destructive" : "text-muted-foreground"}>
+                          {topic.topic}
+                        </span>
+                        <span className="text-muted-foreground/60">
+                          from {topic.lectureTitle}
+                        </span>
+                        {topic.isOverdue && (
+                          <Badge variant="outline" className="text-destructive border-destructive/30 text-xs">
+                            overdue
+                          </Badge>
+                        )}
+                        {topic.streak > 0 && !topic.isOverdue && (
+                          <Badge variant="outline" className="text-primary border-primary/30 text-xs">
+                            {topic.streak} streak
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                    {dailyQuizStatus.dueTopics.length > 3 && (
+                      <p className="text-xs text-muted-foreground">
+                        +{dailyQuizStatus.dueTopics.length - 3} more topics
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className="mt-4">
+                  <Button
+                    onClick={onStartDailyQuiz}
+                    className="gap-2"
+                    data-testid="button-start-daily-quiz"
+                  >
+                    <Zap className="h-4 w-4" aria-hidden="true" />
+                    Start Daily Quiz
+                  </Button>
                 </div>
               </div>
             </div>

@@ -42,6 +42,9 @@ export default function Home() {
   const [pendingAchievements, setPendingAchievements] = useState<Achievement[]>([]);
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
   const [perfectScoresCount, setPerfectScoresCount] = useState(0);
+  const [isDailyQuiz, setIsDailyQuiz] = useState(false);
+  const [dailyQuizPlanId, setDailyQuizPlanId] = useState<string | null>(null);
+  const [dailyQuizTopics, setDailyQuizTopics] = useState<{ topic: string; lectureTitle: string; reason: string }[]>([]);
 
   const { data: userProfile = INITIAL_USER_PROFILE } = useQuery<UserProfile>({
     queryKey: ["/api/profile"],
@@ -106,6 +109,37 @@ export default function Home() {
     },
   });
 
+  const generateDailyQuizMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/generate-daily-quiz", {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setCurrentQuiz(data.questions);
+      setDailyQuizPlanId(data.planId);
+      setDailyQuizTopics(data.focusTopics || []);
+      setIsDailyQuiz(true);
+      setCurrentLectureId(null);
+      setCurrentLectureTitle("Daily Quiz");
+      setCurrentView("quiz");
+    },
+    onError: () => {
+      setCurrentView("dashboard");
+      setIsDailyQuiz(false);
+    },
+  });
+
+  const completeDailyQuizMutation = useMutation({
+    mutationFn: async ({ planId, score, topicScores }: { planId: string; score: number; topicScores: { topic: string; correct: boolean }[] }) => {
+      const response = await apiRequest("POST", "/api/daily-quiz/complete", { planId, score, topicScores });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/daily-quiz/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+  });
+
   const handleSaveLecture = useCallback((content: string, title: string) => {
     const lecture: Omit<Lecture, "id"> = {
       title,
@@ -131,12 +165,22 @@ export default function Home() {
     const lecture = lectureHistory.find((l) => l.id === lectureId);
     if (!lecture) return;
 
+    setIsDailyQuiz(false);
+    setDailyQuizPlanId(null);
     setCurrentLectureId(lectureId);
     setCurrentLectureTitle(lecture.title);
     setCurrentLectureContent(lecture.content);
     setCurrentView("loading");
     generateQuizMutation.mutate({ content: lecture.content, title: lecture.title });
   }, [lectureHistory, generateQuizMutation]);
+
+  const handleStartDailyQuiz = useCallback(() => {
+    setIsDailyQuiz(true);
+    setCurrentLectureId(null);
+    setCurrentLectureTitle("Daily Quiz");
+    setCurrentView("loading");
+    generateDailyQuizMutation.mutate();
+  }, [generateDailyQuizMutation]);
 
   const handleQuizComplete = useCallback((answers: { questionIndex: number; selectedAnswer: number; isCorrect: boolean }[]) => {
     const correctCount = answers.filter((a) => a.isCorrect).length;
@@ -278,12 +322,28 @@ export default function Home() {
       }
     }
 
+    // Complete daily quiz if applicable
+    if (isDailyQuiz && dailyQuizPlanId) {
+      const topicScores = currentQuiz.map((q: any, idx: number) => {
+        const answer = answers.find(a => a.questionIndex === idx);
+        return {
+          topic: q.topic || "General",
+          correct: answer?.isCorrect || false,
+        };
+      });
+      completeDailyQuizMutation.mutate({
+        planId: dailyQuizPlanId,
+        score: accuracyPercent,
+        topicScores,
+      });
+    }
+
     setCurrentView("results");
 
     if (calculatedNewLevel > oldLevel) {
       setTimeout(() => setShowLevelUp(true), 500);
     }
-  }, [currentQuiz, currentLectureId, userProfile, lectureHistory, perfectScoresCount, updateProfileMutation]);
+  }, [currentQuiz, currentLectureId, userProfile, lectureHistory, perfectScoresCount, updateProfileMutation, isDailyQuiz, dailyQuizPlanId, completeDailyQuizMutation]);
 
   const handleConfidenceSubmit = useCallback((rating: number) => {
     const confidenceXP = rating * 5;
@@ -338,6 +398,9 @@ export default function Home() {
     setCurrentQuiz([]);
     setWeakTopics([]);
     setCurrentLectureId(null);
+    setIsDailyQuiz(false);
+    setDailyQuizPlanId(null);
+    setDailyQuizTopics([]);
   }, [currentLectureId, quizResult, weakTopics, userProfile, lectureHistory, perfectScoresCount, updateLectureMutation, updateProfileMutation]);
 
   const handleUseHint = useCallback(() => {
@@ -439,6 +502,7 @@ export default function Home() {
             onStartReview={handleStartReview}
             onViewAchievements={() => setCurrentView("achievements")}
             onDeleteLecture={(id) => deleteLectureMutation.mutate(id)}
+            onStartDailyQuiz={handleStartDailyQuiz}
           />
         );
     }
