@@ -3,7 +3,10 @@ import { createServer, type Server } from "http";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { storage } from "./storage";
-import * as pdfParse from "pdf-parse";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -310,7 +313,7 @@ Important:
       if (fileType === "application/pdf" || fileName?.endsWith(".pdf")) {
         try {
           const buffer = Buffer.from(fileData, "base64");
-          const pdfData = await (pdfParse as any).default(buffer);
+          const pdfData = await pdfParse(buffer);
           extractedText = pdfData.text;
           if (!extractedText || extractedText.trim().length < 50) {
             return res.status(400).json({ 
