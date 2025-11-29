@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
-import type { UserProfile, Lecture, Achievement, CalendarSettings, CalendarEvent } from "@shared/schema";
-import { INITIAL_USER_PROFILE, ALL_ACHIEVEMENTS, DEMO_USER_PROFILE, DEMO_LECTURES, DEMO_CALENDAR_SETTINGS, DEMO_CALENDAR_EVENTS } from "@shared/schema";
+import type { UserProfile, Lecture, Achievement, CalendarSettings, CalendarEvent, TopicReviewStats, ReviewEvent, DailyQuizPlan } from "@shared/schema";
+import { INITIAL_USER_PROFILE, ALL_ACHIEVEMENTS, DEMO_USER_PROFILE, DEMO_LECTURES, DEMO_CALENDAR_SETTINGS, DEMO_CALENDAR_EVENTS, calculateNextReview, calculateTopicPriority } from "@shared/schema";
 
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
@@ -27,6 +27,22 @@ export interface IStorage {
   getCalendarEvents(): CalendarEvent[];
   setCalendarEvents(events: CalendarEvent[]): CalendarEvent[];
   updateCalendarEventMatch(eventId: string, lectureId: string | null): CalendarEvent | undefined;
+  
+  // Topic review and spaced repetition
+  getTopicReviewStats(): TopicReviewStats[];
+  getTopicReviewStat(topic: string): TopicReviewStats | undefined;
+  updateTopicReviewStats(topic: string, lectureId: string, lectureTitle: string, score: number): TopicReviewStats;
+  initializeTopicsFromLecture(lectureId: string, topics: string[]): void;
+  
+  // Daily quiz planning
+  getDueTopics(limit?: number): TopicReviewStats[];
+  getCurrentDailyQuizPlan(): DailyQuizPlan | null;
+  setCurrentDailyQuizPlan(plan: DailyQuizPlan): DailyQuizPlan;
+  completeDailyQuizPlan(score: number): DailyQuizPlan | null;
+  
+  // Review history
+  addReviewEvent(event: Omit<ReviewEvent, "id">): ReviewEvent;
+  getReviewHistory(limit?: number): ReviewEvent[];
 }
 
 export class MemStorage implements IStorage {
@@ -34,12 +50,18 @@ export class MemStorage implements IStorage {
   private lectures: Lecture[];
   private calendarSettings: CalendarSettings | null;
   private calendarEvents: CalendarEvent[];
+  private topicReviewStats: Map<string, TopicReviewStats>;
+  private reviewHistory: ReviewEvent[];
+  private currentDailyQuizPlan: DailyQuizPlan | null;
 
   constructor() {
     this.userProfile = deepClone(INITIAL_USER_PROFILE);
     this.lectures = [];
     this.calendarSettings = null;
     this.calendarEvents = [];
+    this.topicReviewStats = new Map();
+    this.reviewHistory = [];
+    this.currentDailyQuizPlan = null;
   }
 
   getUserProfile(): UserProfile {
@@ -199,6 +221,153 @@ export class MemStorage implements IStorage {
     
     this.calendarEvents[index].matchedLectureId = lectureId ?? undefined;
     return deepClone(this.calendarEvents[index]);
+  }
+
+  // Topic review stats methods
+  getTopicReviewStats(): TopicReviewStats[] {
+    return Array.from(this.topicReviewStats.values()).map(s => deepClone(s));
+  }
+
+  getTopicReviewStat(topic: string): TopicReviewStats | undefined {
+    const stat = this.topicReviewStats.get(topic);
+    return stat ? deepClone(stat) : undefined;
+  }
+
+  updateTopicReviewStats(topic: string, lectureId: string, lectureTitle: string, score: number): TopicReviewStats {
+    const existing = this.topicReviewStats.get(topic);
+    const today = new Date().toISOString().split('T')[0];
+    
+    if (existing) {
+      // Update existing stats using SM-2 algorithm
+      const wasSuccessful = score >= 70;
+      const newStreak = wasSuccessful ? existing.streak + 1 : 0;
+      
+      const { easeFactor, interval, nextDue } = calculateNextReview(
+        existing.easeFactor,
+        existing.interval,
+        score,
+        newStreak
+      );
+      
+      const updated: TopicReviewStats = {
+        ...existing,
+        lastReviewed: today,
+        lastScore: score,
+        reviewCount: existing.reviewCount + 1,
+        easeFactor,
+        interval,
+        nextDue,
+        streak: newStreak,
+      };
+      
+      this.topicReviewStats.set(topic, updated);
+      return deepClone(updated);
+    } else {
+      // Create new stats
+      const { easeFactor, interval, nextDue } = calculateNextReview(2.5, 0, score, 0);
+      
+      const newStats: TopicReviewStats = {
+        topic,
+        lectureId,
+        lectureTitle,
+        lastReviewed: today,
+        lastScore: score,
+        reviewCount: 1,
+        easeFactor,
+        interval,
+        nextDue,
+        streak: score >= 70 ? 1 : 0,
+      };
+      
+      this.topicReviewStats.set(topic, newStats);
+      return deepClone(newStats);
+    }
+  }
+
+  initializeTopicsFromLecture(lectureId: string, topics: string[]): void {
+    const lecture = this.lectures.find(l => l.id === lectureId);
+    if (!lecture) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    topics.forEach(topic => {
+      if (!this.topicReviewStats.has(topic)) {
+        // Initialize with default spaced repetition values
+        const newStats: TopicReviewStats = {
+          topic,
+          lectureId,
+          lectureTitle: lecture.title,
+          lastReviewed: today,
+          lastScore: lecture.reviewScore,
+          reviewCount: 1,
+          easeFactor: 2.5,
+          interval: 1,
+          nextDue: today, // Due immediately for first review
+          streak: lecture.reviewScore >= 70 ? 1 : 0,
+        };
+        this.topicReviewStats.set(topic, newStats);
+      }
+    });
+  }
+
+  // Daily quiz planning methods
+  getDueTopics(limit: number = 10): TopicReviewStats[] {
+    const allStats = this.getTopicReviewStats();
+    const today = new Date();
+    
+    // Calculate priority for each topic and filter due/overdue ones
+    const scoredTopics = allStats
+      .map(stats => ({
+        stats,
+        priority: calculateTopicPriority(stats),
+        isDue: new Date(stats.nextDue) <= today,
+      }))
+      .filter(t => t.isDue || t.priority > 50) // Include due topics or high-priority ones
+      .sort((a, b) => b.priority - a.priority);
+    
+    return scoredTopics.slice(0, limit).map(t => t.stats);
+  }
+
+  getCurrentDailyQuizPlan(): DailyQuizPlan | null {
+    return this.currentDailyQuizPlan ? deepClone(this.currentDailyQuizPlan) : null;
+  }
+
+  setCurrentDailyQuizPlan(plan: DailyQuizPlan): DailyQuizPlan {
+    this.currentDailyQuizPlan = deepClone(plan);
+    return this.getCurrentDailyQuizPlan()!;
+  }
+
+  completeDailyQuizPlan(score: number): DailyQuizPlan | null {
+    if (!this.currentDailyQuizPlan) return null;
+    
+    this.currentDailyQuizPlan.completed = true;
+    this.currentDailyQuizPlan.completedAt = new Date().toISOString();
+    this.currentDailyQuizPlan.score = score;
+    
+    const completedPlan = deepClone(this.currentDailyQuizPlan);
+    this.currentDailyQuizPlan = null;
+    
+    return completedPlan;
+  }
+
+  // Review history methods
+  addReviewEvent(eventData: Omit<ReviewEvent, "id">): ReviewEvent {
+    const event: ReviewEvent = {
+      ...deepClone(eventData),
+      id: randomUUID(),
+    };
+    this.reviewHistory.unshift(event); // Add to beginning for chronological order
+    
+    // Keep only last 1000 events
+    if (this.reviewHistory.length > 1000) {
+      this.reviewHistory = this.reviewHistory.slice(0, 1000);
+    }
+    
+    return deepClone(event);
+  }
+
+  getReviewHistory(limit: number = 50): ReviewEvent[] {
+    return this.reviewHistory.slice(0, limit).map(e => deepClone(e));
   }
 }
 
