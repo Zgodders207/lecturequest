@@ -1,6 +1,6 @@
 import { 
-  Zap, Trophy, Target, Flame, BookOpen, TrendingUp, 
-  Clock, Award, Crown, Play, Upload, Sparkles, ChevronRight, FileText, Trash2, Eye
+  Zap, Trophy, Target, Flame, BookOpen, 
+  Clock, Award, Play, Upload, Sparkles, ChevronRight, FileText, Trash2, Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { UserProfile, Lecture, Achievement } from "@shared/schema";
-import { getLevelTitle, xpForNextLevel, formatDate, getTopicMasteryColor, getMotivationalQuote } from "@/lib/game-utils";
+import { getLevelTitle, xpForNextLevel, formatDate, getMotivationalQuote } from "@/lib/game-utils";
 
 interface DashboardProps {
   userProfile: UserProfile;
@@ -37,7 +37,7 @@ export function Dashboard({
   const xpNeeded = nextLevelXP - currentLevelXP;
   const progressPercent = Math.min(100, (xpInLevel / xpNeeded) * 100);
 
-  const hasDailyQuizAvailable = lectureHistory.length > 0 && userProfile.needsPractice.length > 0;
+  const hasDailyQuizAvailable = lectureHistory.length > 0;
   const unlockedAchievements = userProfile.achievements.filter((a) => a.unlocked);
   const recentAchievements = unlockedAchievements.slice(-3);
 
@@ -121,22 +121,6 @@ export function Dashboard({
         <Card className="hover-elevate">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-success/20">
-                <Crown className="h-6 w-6 text-success" aria-hidden="true" />
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-success">
-                  {userProfile.masteredTopics.length}
-                </p>
-                <p className="text-sm text-muted-foreground">Topics Mastered</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover-elevate">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gold/20">
                 <Flame className="h-6 w-6 text-gold" aria-hidden="true" />
               </div>
@@ -167,7 +151,7 @@ export function Dashboard({
         </Card>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
@@ -191,7 +175,7 @@ export function Dashboard({
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
               {userProfile.achievements.slice(0, 6).map((achievement) => (
                 <Tooltip key={achievement.id}>
                   <TooltipTrigger asChild>
@@ -228,54 +212,6 @@ export function Dashboard({
                 </Tooltip>
               ))}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" aria-hidden="true" />
-              Topic Mastery
-            </CardTitle>
-            <CardDescription>
-              Your progress across different topics
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {userProfile.masteredTopics.length === 0 && userProfile.needsPractice.length === 0 ? (
-              <p className="text-center text-muted-foreground py-6">
-                Complete quizzes to track your topic mastery
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {userProfile.masteredTopics.map((topic) => (
-                  <div key={topic} className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">{topic}</span>
-                        <Badge variant="secondary" className="bg-success/20 text-success">
-                          Mastered
-                        </Badge>
-                      </div>
-                      <Progress value={100} className="h-2 [&>div]:bg-success" />
-                    </div>
-                  </div>
-                ))}
-                {userProfile.needsPractice.map((topic) => (
-                  <div key={topic} className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">{topic}</span>
-                        <Badge variant="secondary" className="bg-destructive/20 text-destructive">
-                          Needs Practice
-                        </Badge>
-                      </div>
-                      <Progress value={35} className="h-2 [&>div]:bg-destructive" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </CardContent>
         </Card>
       </section>
