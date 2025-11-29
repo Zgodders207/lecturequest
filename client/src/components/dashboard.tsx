@@ -4,7 +4,7 @@ import {
   Zap, Flame, BookOpen, 
   Play, Upload, ChevronRight, Trash2, Bell,
   Target, Award, TrendingUp, Trophy, Clock,
-  Calendar, CalendarDays, AlertTriangle, RefreshCw, Settings, X, Loader2, MapPin
+  Calendar, CalendarDays, AlertTriangle, RefreshCw, Settings, X, Loader2, MapPin, FileCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +22,11 @@ interface CalendarData {
   settings: CalendarSettings | null;
   events: CalendarEvent[];
   upcomingLectures: CalendarEvent[];
+  upcomingExams: CalendarEvent[];
   missingLectures: CalendarEvent[];
   totalEvents: number;
   lectureCount: number;
+  examCount: number;
 }
 
 interface DashboardProps {
@@ -129,6 +131,7 @@ export function Dashboard({
   
   const hasCalendar = calendarData?.settings !== null;
   const upcomingLectures = calendarData?.upcomingLectures || [];
+  const upcomingExams = calendarData?.upcomingExams || [];
   const missingLectures = calendarData?.missingLectures || [];
   
   const formatEventDate = (dateStr: string) => {
@@ -296,6 +299,50 @@ export function Dashboard({
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
                     <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{event.title}</p>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatEventDate(event.startsAt)}
+                      </span>
+                      {event.location && (
+                        <>
+                          <span>·</span>
+                          <span className="flex items-center gap-1 truncate">
+                            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                            {event.location}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {upcomingExams.length > 0 && (
+          <section aria-label="Upcoming Quizzes and Exams">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-serif text-2xl">Upcoming Quizzes & Exams</h2>
+                <p className="text-muted-foreground mt-1">
+                  Assessments due in the next 7 days
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {upcomingExams.map((event) => (
+                <div 
+                  key={event.id}
+                  className="flex items-center gap-4 p-4 rounded-xl bg-card border border-gold/20"
+                  data-testid={`exam-event-${event.id}`}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 flex-shrink-0">
+                    <FileCheck className="h-5 w-5 text-gold" aria-hidden="true" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{event.title}</p>

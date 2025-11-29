@@ -142,17 +142,20 @@ function cleanJsonResponse(text: string): string {
     .trim();
 }
 
-function classifyEventType(summary: string, description?: string): "lecture" | "workshop" | "tutorial" | "other" {
+function classifyEventType(summary: string, description?: string): "lecture" | "workshop" | "tutorial" | "exam" | "other" {
   const text = `${summary} ${description || ""}`.toLowerCase();
   
+  if (text.includes("quiz") || text.includes("exam") || text.includes("test") || text.includes("assessment")) return "exam";
   if (text.includes("workshop")) return "workshop";
   if (text.includes("tutorial") || text.includes("seminar")) return "tutorial";
   if (text.includes("lab") || text.includes("practical")) return "other";
   if (text.includes("lecture") || text.includes("lec")) return "lecture";
   
+  const examPatterns = /\b(quiz|exam|test|midterm|final|assessment)\b/i;
   const workshopPatterns = /\b(wkshp|works?hop)\b/i;
   const tutorialPatterns = /\b(tut|tutorial|sem|seminar)\b/i;
   
+  if (examPatterns.test(text)) return "exam";
   if (workshopPatterns.test(text)) return "workshop";
   if (tutorialPatterns.test(text)) return "tutorial";
   
@@ -967,12 +970,18 @@ Important:
       const lectures = storage.getLectures();
       
       const lecturesOnly = events.filter(e => e.eventType === "lecture");
+      const examsOnly = events.filter(e => e.eventType === "exam");
       
       const now = new Date();
       const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
       
       const upcomingLectures = lecturesOnly.filter(e => {
+        const eventDate = new Date(e.startsAt);
+        return eventDate >= now && eventDate <= sevenDaysFromNow;
+      });
+      
+      const upcomingExams = examsOnly.filter(e => {
         const eventDate = new Date(e.startsAt);
         return eventDate >= now && eventDate <= sevenDaysFromNow;
       });
@@ -999,9 +1008,11 @@ Important:
         settings,
         events: lecturesOnly,
         upcomingLectures,
+        upcomingExams,
         missingLectures,
         totalEvents: events.length,
         lectureCount: lecturesOnly.length,
+        examCount: examsOnly.length,
       });
     } catch (error: any) {
       console.error("Error fetching calendar:", error);

@@ -317,7 +317,7 @@ export interface CalendarEvent {
   id: string;
   uid: string;
   title: string;
-  eventType: "lecture" | "workshop" | "tutorial" | "other";
+  eventType: "lecture" | "workshop" | "tutorial" | "exam" | "other";
   startsAt: string;
   endsAt: string;
   location?: string;
