@@ -127,6 +127,77 @@ export class MemStorage implements IStorage {
     this.lectures = deepClone(DEMO_LECTURES);
     this.calendarSettings = deepClone(DEMO_CALENDAR_SETTINGS);
     this.calendarEvents = deepClone(DEMO_CALENDAR_EVENTS);
+    
+    // Load demo topic review stats for daily quiz feature
+    this.topicReviewStats.clear();
+    const today = new Date();
+    const demoTopics: TopicReviewStats[] = [
+      {
+        topic: "Recursion",
+        lectureId: "demo-3",
+        lectureTitle: "Functions & Modular Design",
+        lastReviewed: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        lastScore: 65,
+        reviewCount: 2,
+        easeFactor: 2.1,
+        interval: 3,
+        nextDue: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Overdue
+        streak: 0,
+      },
+      {
+        topic: "Binary Trees",
+        lectureId: "demo-6",
+        lectureTitle: "Data Structures Fundamentals",
+        lastReviewed: new Date(today.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        lastScore: 58,
+        reviewCount: 1,
+        easeFactor: 2.0,
+        interval: 1,
+        nextDue: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Overdue
+        streak: 0,
+      },
+      {
+        topic: "Polymorphism",
+        lectureId: "demo-5",
+        lectureTitle: "Object-Oriented Programming",
+        lastReviewed: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        lastScore: 72,
+        reviewCount: 2,
+        easeFactor: 2.3,
+        interval: 3,
+        nextDue: today.toISOString().split('T')[0], // Due today
+        streak: 1,
+      },
+      {
+        topic: "Nested Loops",
+        lectureId: "demo-2",
+        lectureTitle: "Control Flow & Loops",
+        lastReviewed: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        lastScore: 85,
+        reviewCount: 3,
+        easeFactor: 2.5,
+        interval: 7,
+        nextDue: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Overdue
+        streak: 2,
+      },
+      {
+        topic: "Abstract Classes",
+        lectureId: "demo-5",
+        lectureTitle: "Object-Oriented Programming",
+        lastReviewed: new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        lastScore: 60,
+        reviewCount: 1,
+        easeFactor: 2.0,
+        interval: 1,
+        nextDue: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Overdue
+        streak: 0,
+      },
+    ];
+    
+    demoTopics.forEach(topic => {
+      this.topicReviewStats.set(topic.topic, topic);
+    });
+    
     return {
       profile: this.getUserProfile(),
       lectures: this.getLectures(),
