@@ -133,6 +133,15 @@ Preferred communication style: Simple, everyday language.
 - Generates 5-7 multiple choice questions
 - Provides explanations for each answer
 - Identifies topics for weak areas based on incorrect answers
+- **Skills Recognition**: Identifies 3-5 transferable skills per lecture with:
+  - Name, description, and category (cognitive/technical/interpersonal)
+  - Relevant career paths (2-3 per skill)
+  - Proficiency level calculated from quiz accuracy
+
+**Skills Proficiency Calculation**:
+- Proficient: Quiz accuracy >= 85%
+- Intermediate: Quiz accuracy 60-84%
+- Developing: Quiz accuracy < 60%
 
 **Daily Quiz Generation**:
 - Uses previous weak topics
@@ -140,6 +149,19 @@ Preferred communication style: Simple, everyday language.
 - Adapts difficulty based on previous scores
 
 **Response Processing**: JSON parsing with cleanup utility to remove markdown code fences
+
+### Skills Profile & Career Mapping
+
+**Aggregation**: GET /api/skills endpoint aggregates all identified skills across lectures
+- Skills sorted by proficiency level (proficient > intermediate > developing)
+- Dashboard displays skills with career badges
+- CSV export functionality for sharing with employers/advisors
+
+**Dashboard Integration**:
+- Skills Profile section shows aggregated skills
+- Each skill displays 2-3 relevant career paths
+- Proficiency breakdown (proficient/intermediate/developing counts)
+- Export button generates CSV with full skill data
 
 ## External Dependencies
 
