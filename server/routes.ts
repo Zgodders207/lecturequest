@@ -135,8 +135,8 @@ function cleanJsonResponse(text: string): string {
 function extractTitleFromText(text: string): string | null {
   const lines = text.split(/[\n\r]+/).map(line => line.trim()).filter(line => line.length > 0);
   
-  const primaryCandidates: string[] = [];
-  const secondaryCandidates: string[] = [];
+  let subjectTitle: string | null = null;
+  const fallbackCandidates: string[] = [];
   
   for (let i = 0; i < Math.min(30, lines.length); i++) {
     const line = lines[i];
@@ -144,7 +144,7 @@ function extractTitleFromText(text: string): string | null {
     
     if (line.startsWith("#")) {
       const title = line.replace(/^#+\s*/, "").trim();
-      if (title.length >= 5 && title.length <= 100) {
+      if (title.length >= 5 && title.length <= 80) {
         return title;
       }
     }
@@ -157,7 +157,7 @@ function extractTitleFromText(text: string): string | null {
       lowerLine.includes("cisco") ||
       /^\d+$/.test(lowerLine) ||
       /^page\s+\d+/.test(lowerLine) ||
-      line.length < 8 ||
+      line.length < 5 ||
       line.length > 80
     ) {
       continue;
@@ -175,49 +175,28 @@ function extractTitleFromText(text: string): string | null {
       continue;
     }
     
-    const moduleMatch = line.match(/^(Module|Chapter|Unit|Lecture)\s+\d+[:\s]+(.+)/i);
-    if (moduleMatch) {
-      primaryCandidates.push(line);
-      continue;
-    }
-    
-    if (
-      lowerLine.includes("introduction to") ||
-      lowerLine.includes("fundamentals of") ||
-      lowerLine.includes("basics of") ||
-      lowerLine.includes("overview of")
-    ) {
-      primaryCandidates.push(line);
-      continue;
-    }
-    
-    if (line.length >= 10 && line.length <= 60 && !lowerLine.includes(":")) {
-      secondaryCandidates.push(line);
-    }
-  }
-  
-  if (primaryCandidates.length >= 2) {
-    const first = primaryCandidates[0];
-    const second = primaryCandidates[1];
-    if (first.length + second.length <= 100) {
-      return `${first} - ${second}`;
-    }
-    return first;
-  }
-  
-  if (primaryCandidates.length === 1) {
-    if (secondaryCandidates.length > 0) {
-      const first = primaryCandidates[0];
-      const second = secondaryCandidates[0];
-      if (first.length + second.length <= 100) {
-        return `${first} - ${second}`;
+    const moduleMatch = line.match(/^(?:Module|Chapter|Unit|Lecture)\s+\d+\s*[:\-–]\s*(.+)/i);
+    if (moduleMatch && moduleMatch[1]) {
+      const extracted = moduleMatch[1].trim();
+      if (extracted.length >= 5 && extracted.length <= 80) {
+        subjectTitle = extracted;
+        continue;
       }
     }
-    return primaryCandidates[0];
+    
+    if (!subjectTitle && line.length >= 8 && line.length <= 60) {
+      if (!lowerLine.includes(":") && !lowerLine.match(/^[\d.]+\s/)) {
+        fallbackCandidates.push(line);
+      }
+    }
   }
   
-  if (secondaryCandidates.length > 0) {
-    return secondaryCandidates[0];
+  if (subjectTitle) {
+    return subjectTitle;
+  }
+  
+  if (fallbackCandidates.length > 0) {
+    return fallbackCandidates[0];
   }
   
   return null;
