@@ -192,8 +192,13 @@ export default function Home() {
     const incorrectTopics: string[] = [];
     incorrectAnswers.forEach((answer) => {
       const question = currentQuiz[answer.questionIndex];
-      const topics = extractTopics(question.question);
-      incorrectTopics.push(...topics);
+      // Use AI-generated topic if available, otherwise fall back to extraction
+      if (question.topic) {
+        incorrectTopics.push(question.topic);
+      } else {
+        const topics = extractTopics(question.question);
+        incorrectTopics.push(...topics);
+      }
     });
     const uniqueIncorrectTopics = Array.from(new Set(incorrectTopics)).slice(0, 5);
 

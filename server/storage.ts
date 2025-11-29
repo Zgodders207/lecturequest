@@ -133,7 +133,7 @@ export class MemStorage implements IStorage {
     const today = new Date();
     const demoTopics: TopicReviewStats[] = [
       {
-        topic: "Recursion",
+        topic: "Recursive Function Call Stack",
         lectureId: "demo-3",
         lectureTitle: "Functions & Modular Design",
         lastReviewed: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -145,7 +145,7 @@ export class MemStorage implements IStorage {
         streak: 0,
       },
       {
-        topic: "Binary Trees",
+        topic: "Binary Tree Traversal Algorithms",
         lectureId: "demo-6",
         lectureTitle: "Data Structures Fundamentals",
         lastReviewed: new Date(today.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -157,7 +157,7 @@ export class MemStorage implements IStorage {
         streak: 0,
       },
       {
-        topic: "Polymorphism",
+        topic: "Method Overriding & Dynamic Dispatch",
         lectureId: "demo-5",
         lectureTitle: "Object-Oriented Programming",
         lastReviewed: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -169,7 +169,7 @@ export class MemStorage implements IStorage {
         streak: 1,
       },
       {
-        topic: "Nested Loops",
+        topic: "Loop Complexity & Big-O Analysis",
         lectureId: "demo-2",
         lectureTitle: "Control Flow & Loops",
         lastReviewed: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -181,7 +181,7 @@ export class MemStorage implements IStorage {
         streak: 2,
       },
       {
-        topic: "Abstract Classes",
+        topic: "Abstract Classes vs Interfaces",
         lectureId: "demo-5",
         lectureTitle: "Object-Oriented Programming",
         lastReviewed: new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],

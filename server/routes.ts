@@ -552,7 +552,8 @@ Return ONLY valid JSON in this exact format:
     "question": "string",
     "options": ["string", "string", "string", "string"],
     "correct": number (0-3),
-    "explanation": "string"
+    "explanation": "string",
+    "topic": "string (specific concept being tested, e.g. 'TCP/IP Protocol Stack', 'Binary Search Algorithm', 'Inheritance in OOP')"
   }
 ]
 
@@ -562,6 +563,7 @@ Important:
 - "correct" must be an index from 0 to 3
 - Questions should test understanding, not just memorization
 - Explanations should be helpful and supportive
+- The "topic" field must be a specific, descriptive concept name from the lecture (not generic words like "Loop" or "Variable")
 - DO NOT include any text outside the JSON array`;
 
       const message = await anthropic.messages.create({
@@ -602,6 +604,7 @@ Important:
           ? q.correct 
           : 0,
         explanation: String(q.explanation || "Great attempt! Keep learning."),
+        topic: String(q.topic || "General Concept"),
       }));
 
       res.json({ 

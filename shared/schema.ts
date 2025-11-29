@@ -6,6 +6,7 @@ export interface Question {
   options: string[];
   correct: number;
   explanation: string;
+  topic?: string; // Specific concept being tested (AI-generated)
 }
 
 // Quiz result after completion
