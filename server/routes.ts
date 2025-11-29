@@ -4,6 +4,27 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { storage } from "./storage";
 
+async function parsePdf(buffer: Buffer): Promise<{ text: string }> {
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  
+  const data = new Uint8Array(buffer);
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  
+  let fullText = "";
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .filter((item: any) => item.str)
+      .map((item: any) => item.str)
+      .join(" ");
+    fullText += pageText + "\n";
+  }
+  
+  return { text: fullText };
+}
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -309,9 +330,7 @@ Important:
       if (fileType === "application/pdf" || fileName?.endsWith(".pdf")) {
         try {
           const buffer = Buffer.from(fileData, "base64");
-          const pdfParseModule = await import("pdf-parse");
-          const pdfParse = pdfParseModule.default || pdfParseModule;
-          const pdfData = await pdfParse(buffer);
+          const pdfData = await parsePdf(buffer);
           extractedText = pdfData.text || "";
           
           extractedText = extractedText
