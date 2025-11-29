@@ -3,10 +3,6 @@ import { createServer, type Server } from "http";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { storage } from "./storage";
-import { createRequire } from "module";
-
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -313,9 +309,18 @@ Important:
       if (fileType === "application/pdf" || fileName?.endsWith(".pdf")) {
         try {
           const buffer = Buffer.from(fileData, "base64");
+          const pdfParseModule = await import("pdf-parse");
+          const pdfParse = pdfParseModule.default || pdfParseModule;
           const pdfData = await pdfParse(buffer);
-          extractedText = pdfData.text;
-          if (!extractedText || extractedText.trim().length < 50) {
+          extractedText = pdfData.text || "";
+          
+          extractedText = extractedText
+            .replace(/\x00/g, "")
+            .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          
+          if (!extractedText || extractedText.length < 50) {
             return res.status(400).json({ 
               error: "Could not extract enough text from PDF. The PDF might be image-based or encrypted. Please try copying the text manually." 
             });
