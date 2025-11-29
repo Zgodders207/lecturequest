@@ -1,6 +1,6 @@
-import { Check, X, TrendingUp, Award, ArrowRight, Sparkles } from "lucide-react";
+import { TrendingUp, Award, ArrowRight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getPerformanceMessage } from "@/lib/game-utils";
 import type { QuizResult, Achievement } from "@shared/schema";
@@ -30,94 +30,77 @@ export function QuizResults({
     improvementPercent
   );
 
-  const getPerformanceIcon = () => {
-    switch (performanceInfo.type) {
-      case "perfect":
-        return <Sparkles className="h-12 w-12 text-gold" aria-hidden="true" />;
-      case "improvement":
-        return <TrendingUp className="h-12 w-12 text-success" aria-hidden="true" />;
-      case "good":
-        return <Check className="h-12 w-12 text-success" aria-hidden="true" />;
-      default:
-        return <Award className="h-12 w-12 text-primary" aria-hidden="true" />;
-    }
-  };
-
   return (
-    <div className="container max-w-lg mx-auto px-4 py-8">
-      <Card className="border-border/50 text-center overflow-hidden">
-        <div className="h-2 xp-gradient-animated" />
-        
-        <CardHeader className="pb-4">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-            {getPerformanceIcon()}
-          </div>
-          
-          <CardTitle className="text-3xl">
-            {isDaily ? "Daily Quiz Complete!" : "Review Complete!"}
-          </CardTitle>
-          
-          <p className="text-lg text-muted-foreground mt-2">
+    <div className="min-h-screen">
+      <div className="max-w-md mx-auto px-6 py-12">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight mb-2">
+            {isDaily ? "Daily Quiz Complete" : "Quiz Complete"}
+          </h1>
+          <p className="text-muted-foreground">
             {performanceInfo.message}
           </p>
-        </CardHeader>
+        </div>
 
-        <CardContent className="space-y-6">
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg bg-muted/50">
-              <p className="text-4xl font-bold gradient-text">
-                {result.score}/{result.total}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Questions Correct</p>
-            </div>
+            <Card>
+              <CardContent className="pt-6 pb-6 text-center">
+                <p className="text-3xl font-bold tabular-nums">
+                  {result.score}/{result.total}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">Correct</p>
+              </CardContent>
+            </Card>
             
-            <div className="p-4 rounded-lg bg-muted/50">
-              <p className="text-4xl font-bold">
-                <span className={
+            <Card>
+              <CardContent className="pt-6 pb-6 text-center">
+                <p className={`text-3xl font-bold tabular-nums ${
                   result.accuracyPercent >= 80 
                     ? "text-success" 
                     : result.accuracyPercent >= 60 
                     ? "text-gold" 
-                    : "text-muted-foreground"
-                }>
+                    : ""
+                }`}>
                   {result.accuracyPercent}%
-                </span>
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Accuracy</p>
-            </div>
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">Accuracy</p>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="p-4 rounded-lg bg-gold/10 border border-gold/30">
-            <div className="flex items-center justify-center gap-2 text-gold">
-              <Sparkles className="h-5 w-5" aria-hidden="true" />
-              <span className="text-2xl font-bold">+{result.xpEarned} XP</span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">Experience earned</p>
-          </div>
+          <Card className="border-gold/20 bg-gold/5">
+            <CardContent className="pt-6 pb-6 text-center">
+              <div className="flex items-center justify-center gap-2 text-gold">
+                <Zap className="h-5 w-5" aria-hidden="true" />
+                <span className="text-2xl font-bold">+{result.xpEarned} XP</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Earned</p>
+            </CardContent>
+          </Card>
 
           {isImprovement && (
-            <div className="p-4 rounded-lg bg-success/10 border border-success/30">
-              <div className="flex items-center justify-center gap-2 text-success">
-                <TrendingUp className="h-5 w-5" aria-hidden="true" />
-                <span className="text-lg font-bold">
-                  +{Math.round(improvementPercent)}% Improvement!
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                +20 XP Improvement Bonus
-              </p>
-            </div>
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center justify-center gap-2 text-primary">
+                  <TrendingUp className="h-5 w-5" aria-hidden="true" />
+                  <span className="font-medium">
+                    +{Math.round(improvementPercent)}% improvement
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {result.incorrectTopics.length > 0 && (
-            <div className="text-left">
-              <p className="text-sm font-medium mb-2">Areas to focus on:</p>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Review these topics:</p>
               <div className="flex flex-wrap gap-2">
                 {result.incorrectTopics.map((topic, i) => (
                   <Badge 
                     key={i} 
                     variant="secondary"
-                    className="bg-destructive/10 text-destructive border-destructive/20"
+                    className="font-normal"
                   >
                     {topic}
                   </Badge>
@@ -127,40 +110,43 @@ export function QuizResults({
           )}
 
           {newAchievements.length > 0 && (
-            <div className="p-4 rounded-lg bg-gold/10 border border-gold/30 text-left">
-              <p className="text-sm font-medium mb-2 flex items-center gap-2 text-gold">
-                <Award className="h-4 w-4" aria-hidden="true" />
-                Achievements Unlocked!
-              </p>
-              <div className="space-y-2">
-                {newAchievements.map((achievement) => (
-                  <div 
-                    key={achievement.id}
-                    className="flex items-center gap-2 p-2 rounded bg-gold/10"
-                  >
-                    <span className="text-lg">{achievement.icon}</span>
-                    <div>
-                      <p className="font-medium text-sm">{achievement.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {achievement.description}
-                      </p>
+            <Card className="border-gold/20 bg-gold/5">
+              <CardContent className="pt-4 pb-4">
+                <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Award className="h-4 w-4 text-gold" aria-hidden="true" />
+                  New Achievements
+                </p>
+                <div className="space-y-2">
+                  {newAchievements.map((achievement) => (
+                    <div 
+                      key={achievement.id}
+                      className="flex items-center gap-3 p-2 rounded-md bg-background/50"
+                    >
+                      <span className="text-lg">{achievement.icon}</span>
+                      <div>
+                        <p className="font-medium text-sm">{achievement.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {achievement.description}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           <Button
             onClick={onContinue}
-            className="w-full h-12 text-lg animate-pulse-glow gap-2"
+            className="w-full gap-2"
+            size="lg"
             data-testid="button-continue"
           >
-            {isDaily ? "View Dashboard" : "Rate Your Confidence"}
-            <ArrowRight className="h-5 w-5" aria-hidden="true" />
+            {isDaily ? "Back to Dashboard" : "Rate Confidence"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

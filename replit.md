@@ -21,7 +21,9 @@ Preferred communication style: Simple, everyday language.
 **Styling Approach**: 
 - Nature-inspired sage green aesthetic with calming organic tones
 - Color palette based on: #F1F3E0, #D2DCB6, #A1BC98, #778873
-- Card-based layouts with soft sage backgrounds and gold accents for XP/achievements
+- Clean, minimal design with generous whitespace (max-w-5xl containers, py-12 spacing)
+- Simple stat cards without heavy icons
+- Gold accents for XP/achievements, success color for high accuracy
 - Full design system defined in `design_guidelines.md` and `client/src/index.css`
 
 **State Management**: Local React state with no global state library. Application state managed in `client/src/pages/home.tsx` includes:

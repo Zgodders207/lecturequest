@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, FileText, AlertCircle, Sparkles, ArrowLeft, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,37 +147,34 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
   };
 
   return (
-    <div className="container max-w-2xl mx-auto px-4 py-8">
-      <Button
-        variant="ghost"
-        onClick={onBack}
-        className="mb-6"
-        data-testid="button-back"
-        aria-label="Go back to dashboard"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-        Back to Dashboard
-      </Button>
+    <div className="min-h-screen">
+      <div className="max-w-xl mx-auto px-6 py-12">
+        <Button
+          variant="ghost"
+          onClick={onBack}
+          className="mb-8"
+          data-testid="button-back"
+          aria-label="Go back to dashboard"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
+          Back to Dashboard
+        </Button>
 
-      <Card className="border-border/50">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-            <Upload className="h-8 w-8 text-primary" aria-hidden="true" />
-          </div>
-          <CardTitle className="text-2xl gradient-text">Upload Lecture Material</CardTitle>
-          <CardDescription className="text-base">
-            Upload your lecture notes to start earning XP!
-          </CardDescription>
-        </CardHeader>
+        <div className="space-y-2 mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight">Upload Lecture</h1>
+          <p className="text-muted-foreground">
+            Upload your study materials to generate a quiz and earn XP.
+          </p>
+        </div>
 
-        <CardContent className="space-y-6">
+        <div className="space-y-6">
           <div
-            className={`relative rounded-lg border-2 border-dashed transition-colors ${
+            className={`relative rounded-lg border-2 border-dashed transition-all ${
               dragActive
                 ? "border-primary bg-primary/5"
-                : fileName 
-                  ? "border-success bg-success/5"
-                  : "border-border hover:border-primary/50"
+                : fileName && content
+                  ? "border-primary/50 bg-primary/5"
+                  : "border-border hover:border-muted-foreground/50"
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -185,7 +182,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
             onDrop={handleDrop}
             role="button"
             tabIndex={0}
-            aria-label="Drop zone for file upload. Click or drag files here."
+            aria-label="Drop zone for file upload"
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 fileInputRef.current?.click();
@@ -202,59 +199,47 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
               data-testid="input-file"
             />
             
-            <div className="flex flex-col items-center justify-center py-12 px-4">
+            <div className="flex flex-col items-center justify-center py-10 px-4">
               {isParsing ? (
                 <>
-                  <div className="mb-4 rounded-full bg-primary/20 p-4">
-                    <Loader2 className="h-8 w-8 text-primary animate-spin" aria-hidden="true" />
-                  </div>
-                  <p className="text-lg font-medium text-center">
-                    Processing {fileName}...
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Extracting text content
-                  </p>
+                  <Loader2 className="h-8 w-8 text-primary animate-spin mb-3" aria-hidden="true" />
+                  <p className="font-medium">Processing {fileName}...</p>
+                  <p className="text-sm text-muted-foreground mt-1">Extracting text</p>
                 </>
               ) : fileName && content ? (
                 <>
-                  <div className="mb-4 rounded-full bg-success/20 p-4">
-                    <Check className="h-8 w-8 text-success" aria-hidden="true" />
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                    <Check className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg font-medium text-success">{fileName}</span>
-                    <Badge variant="secondary">{getFileTypeLabel()}</Badge>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium">{fileName}</span>
+                    <Badge variant="secondary" className="text-xs">{getFileTypeLabel()}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {content.length.toLocaleString()} characters extracted
+                    {content.length.toLocaleString()} characters
                   </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       clearFile();
                     }}
-                    className="mt-2"
+                    className="text-sm text-muted-foreground hover:text-foreground mt-3 underline-offset-4 hover:underline"
                     data-testid="button-clear-file"
                   >
-                    Upload different file
-                  </Button>
+                    Choose different file
+                  </button>
                 </>
               ) : (
                 <>
-                  <div className="mb-4 rounded-full bg-muted p-4">
-                    <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
+                    <Upload className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
                   </div>
-                  <p className="text-lg font-medium text-center">
-                    Drag & drop your file here
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    or click to browse
-                  </p>
+                  <p className="font-medium">Drop your file here</p>
+                  <p className="text-sm text-muted-foreground mt-1">or click to browse</p>
                   <div className="flex gap-2 mt-4">
-                    <Badge variant="outline">PDF</Badge>
-                    <Badge variant="outline">HTML</Badge>
-                    <Badge variant="outline">TXT</Badge>
+                    <Badge variant="outline" className="text-xs font-normal">PDF</Badge>
+                    <Badge variant="outline" className="text-xs font-normal">HTML</Badge>
+                    <Badge variant="outline" className="text-xs font-normal">TXT</Badge>
                   </div>
                 </>
               )}
@@ -262,14 +247,14 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
           </div>
 
           {parseError && (
-            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-              <div className="flex items-start gap-2">
+            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+              <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="font-medium text-destructive">File Processing Error</p>
-                  <p className="text-sm text-muted-foreground">{parseError}</p>
+                  <p className="font-medium text-sm">Processing failed</p>
+                  <p className="text-sm text-muted-foreground mt-1">{parseError}</p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    You can also paste the content manually in the text area below.
+                    You can paste the content manually below.
                   </p>
                 </div>
               </div>
@@ -278,7 +263,7 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="lecture-title">Lecture Title</Label>
+              <Label htmlFor="lecture-title" className="text-sm font-medium">Title</Label>
               <Input
                 id="lecture-title"
                 placeholder="e.g., Introduction to Data Structures"
@@ -289,30 +274,30 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="lecture-content">
-                Lecture Content
-                <span className="text-muted-foreground text-xs ml-2">
-                  ({content.length.toLocaleString()} characters, min 50)
+              <div className="flex items-center justify-between">
+                <Label htmlFor="lecture-content" className="text-sm font-medium">Content</Label>
+                <span className="text-xs text-muted-foreground">
+                  {content.length.toLocaleString()} / 50 min
                 </span>
-              </Label>
+              </div>
               <Textarea
                 id="lecture-content"
-                placeholder="Paste or type your lecture notes here... (minimum 50 characters)"
+                placeholder="Paste or type your lecture notes here..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="min-h-[200px] resize-y"
+                className="min-h-[160px] resize-y"
                 data-testid="input-content"
               />
             </div>
           </div>
 
           {error && (
-            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-              <div className="flex items-start gap-2">
+            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+              <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="font-medium text-destructive">Error</p>
-                  <p className="text-sm text-muted-foreground">{error}</p>
+                  <p className="font-medium text-sm">Error</p>
+                  <p className="text-sm text-muted-foreground mt-1">{error}</p>
                 </div>
               </div>
             </div>
@@ -321,29 +306,28 @@ export function UploadView({ onUpload, onBack, isLoading, error }: UploadViewPro
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit || isLoading || isParsing}
-            className={`w-full h-12 text-lg font-semibold ${
-              canSubmit && !isLoading && !isParsing ? "animate-pulse-glow" : ""
-            }`}
+            className="w-full"
+            size="lg"
             data-testid="button-generate-quiz"
           >
             {isLoading ? (
               <>
-                <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                 Generating Quiz...
               </>
             ) : (
               <>
-                <Sparkles className="mr-2 h-5 w-5" aria-hidden="true" />
+                <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
                 Generate Quiz
               </>
             )}
           </Button>
 
           <p className="text-center text-sm text-muted-foreground">
-            Earn 50+ XP for completing the review quiz!
+            Complete the quiz to earn 50+ XP
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

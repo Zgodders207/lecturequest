@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Star, Sparkles, ArrowRight } from "lucide-react";
+import { Star, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { getConfidenceMessage } from "@/lib/game-utils";
 
 interface ConfidenceRatingProps {
@@ -23,24 +23,20 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
   };
 
   return (
-    <div className="container max-w-lg mx-auto px-4 py-8">
-      <Card className="border-border/50 text-center overflow-hidden">
-        <div className="h-2 xp-gradient-animated" />
-        
-        <CardHeader>
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-gold/20 to-gold/10">
-            <Star className="h-8 w-8 text-gold" aria-hidden="true" />
-          </div>
-          
-          <CardTitle className="text-2xl">Rate Your Confidence</CardTitle>
-          <CardDescription className="text-base">
-            How confident do you feel about this material?
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen">
+      <div className="max-w-md mx-auto px-6 py-12">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight mb-2">
+            Rate Your Confidence
+          </h1>
+          <p className="text-muted-foreground">
+            How well do you understand this material?
+          </p>
+        </div>
 
-        <CardContent className="space-y-6">
+        <div className="space-y-6">
           <div 
-            className="flex justify-center gap-2"
+            className="flex justify-center gap-1"
             role="radiogroup"
             aria-label="Confidence rating from 1 to 5 stars"
           >
@@ -52,17 +48,17 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
                 onMouseLeave={() => setHoveredRating(0)}
                 onFocus={() => setHoveredRating(value)}
                 onBlur={() => setHoveredRating(0)}
-                className="p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-transform hover:scale-110"
+                className="p-2 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-transform hover:scale-110"
                 role="radio"
                 aria-checked={rating === value}
                 aria-label={`${value} star${value > 1 ? "s" : ""}`}
                 data-testid={`star-${value}`}
               >
                 <Star
-                  className={`h-10 w-10 transition-colors ${
+                  className={`h-9 w-9 transition-colors ${
                     value <= displayRating
                       ? "fill-gold text-gold"
-                      : "text-muted-foreground"
+                      : "text-muted-foreground/30"
                   }`}
                   aria-hidden="true"
                 />
@@ -70,57 +66,53 @@ export function ConfidenceRating({ weakTopics, onSubmit }: ConfidenceRatingProps
             ))}
           </div>
 
-          <div className="min-h-[80px]">
+          <div className="min-h-[60px] text-center">
             {displayRating > 0 && (
-              <div className="p-4 rounded-lg bg-gold/10 border border-gold/30">
-                <p className="text-lg font-medium">{confidenceInfo.message}</p>
-                <p className="text-gold font-semibold mt-1 flex items-center justify-center gap-1">
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  +{confidenceInfo.xp} XP Bonus
+              <div className="space-y-1">
+                <p className="font-medium">{confidenceInfo.message}</p>
+                <p className="text-sm text-gold flex items-center justify-center gap-1">
+                  <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                  +{confidenceInfo.xp} XP
                 </p>
               </div>
             )}
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Each star = +5 XP bonus
-          </p>
-
           {weakTopics.length > 0 && (
-            <div className="p-4 rounded-lg bg-muted/50 text-left">
-              <p className="text-sm font-medium mb-2">
-                We've identified areas to focus on:
-              </p>
-              <ul className="space-y-1">
-                {weakTopics.map((topic, i) => (
-                  <li 
-                    key={i}
-                    className="text-sm text-muted-foreground flex items-center gap-2"
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    {topic}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs text-muted-foreground mt-3">
-                Master these for big XP gains!
-              </p>
-            </div>
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <p className="text-sm font-medium mb-2">Topics to review:</p>
+                <ul className="space-y-1.5">
+                  {weakTopics.map((topic, i) => (
+                    <li 
+                      key={i}
+                      className="text-sm text-muted-foreground flex items-center gap-2"
+                    >
+                      <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+                      {topic}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
           )}
 
           <Button
             onClick={handleSubmit}
             disabled={rating === 0}
-            className={`w-full h-12 text-lg gap-2 ${
-              rating > 0 ? "animate-pulse-glow" : ""
-            }`}
+            className="w-full gap-2"
+            size="lg"
             data-testid="button-submit-rating"
           >
-            Continue to Dashboard
-            <ArrowRight className="h-5 w-5" aria-hidden="true" />
+            Continue
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
-        </CardContent>
-      </Card>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Higher ratings = more XP bonus
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
