@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Zap, Flame, BookOpen, 
   Play, Upload, ChevronRight, Trash2, Bell,
   Target, Award, TrendingUp, Trophy, Clock,
-  Calendar, CalendarDays, AlertTriangle, RefreshCw, X, Loader2, MapPin, FileCheck, Sparkles,
-  Brain, Briefcase, Download, GraduationCap, BarChart3
+  Calendar, CalendarDays, RefreshCw, X, Loader2, FileCheck, Sparkles,
+  Brain, Briefcase, Download, GraduationCap, BarChart3, Lightbulb, ArrowUpRight, CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -223,6 +223,63 @@ export function Dashboard({
     toast({ title: "Skills exported", description: "Your skills profile has been downloaded." });
   };
 
+  // AI Learning Coach - Generate personalized insights (only when actionable data exists)
+  // Only enable quiz actions when daily quiz is actually available (not just reviews)
+  const hasQuizAction = Boolean(onStartDailyQuiz && dailyQuizStatus?.hasDueTopics);
+  
+  const aiInsights = useMemo(() => {
+    // Don't show insights if user has no meaningful data
+    if (lectureHistory.length === 0 && userProfile.totalXP === 0) {
+      return [];
+    }
+    
+    const insights: { icon: "lightbulb" | "trending" | "target" | "flame" | "brain"; text: string; action?: string }[] = [];
+    
+    // Streak-based insight
+    if (userProfile.currentStreak >= 7) {
+      insights.push({ icon: "flame", text: `Amazing ${userProfile.currentStreak}-day streak! You're building strong habits.` });
+    } else if (userProfile.currentStreak >= 3) {
+      insights.push({ icon: "flame", text: `${userProfile.currentStreak}-day streak going strong. Keep the momentum!` });
+    } else if (userProfile.currentStreak === 0 && lectureHistory.length > 0 && hasQuizAction) {
+      // Only show streak restart if there's actually a quiz available
+      insights.push({ icon: "target", text: "Start a new streak today! Consistency is key to retention.", action: "quiz" });
+    }
+
+    // Accuracy-based insight
+    if (averageAccuracy >= 85) {
+      insights.push({ icon: "brain", text: `${averageAccuracy}% average accuracy - you're mastering the material!` });
+    } else if (averageAccuracy >= 60 && averageAccuracy < 85 && dailyQuizStatus?.dueTopics) {
+      const weakTopics = dailyQuizStatus.dueTopics.filter(t => t.lastScore < 70).slice(0, 2);
+      if (weakTopics.length > 0 && hasQuizAction) {
+        insights.push({ icon: "lightbulb", text: `Focus on "${weakTopics[0].topic}" to boost your score.`, action: "quiz" });
+      }
+    }
+
+    // Skills-based insight
+    if (skillsData && skillsData.proficientCount > 0) {
+      const topSkill = skillsData.skills.find(s => s.proficiencyLevel === "proficient");
+      if (topSkill && topSkill.relevantCareers.length > 0) {
+        insights.push({ icon: "trending", text: `Your "${topSkill.name}" skill opens doors to ${topSkill.relevantCareers[0]}.` });
+      }
+    }
+
+    // Progress insight - only show if there's a way to earn XP
+    if (xpToNext <= 100 && hasQuizAction) {
+      insights.push({ icon: "target", text: `Only ${xpToNext} XP to Level ${userProfile.level + 1}! One quiz away.`, action: "quiz" });
+    }
+
+    // Learning velocity - requires sufficient data
+    if (lectureHistory.length >= 3) {
+      const recentLectures = lectureHistory.slice(0, 3);
+      const avgRecentScore = Math.round(recentLectures.reduce((sum, l) => sum + l.reviewScore, 0) / recentLectures.length);
+      if (avgRecentScore > averageAccuracy + 5) {
+        insights.push({ icon: "trending", text: "Your recent scores are improving! Great progress." });
+      }
+    }
+
+    return insights.slice(0, 2); // Show max 2 insights
+  }, [userProfile, lectureHistory, averageAccuracy, skillsData, dailyQuizStatus, xpToNext, hasQuizAction]);
+
   return (
     <div className="min-h-screen">
       <div className="max-w-4xl mx-auto px-6 py-10">
@@ -297,7 +354,40 @@ export function Dashboard({
           </TabsList>
 
           {/* TODAY TAB */}
-          <TabsContent value="today" className="space-y-4">
+          <TabsContent value="today" className="space-y-4" role="tabpanel" aria-label="Today's learning activities">
+            {/* AI Learning Coach Insights */}
+            {aiInsights.length > 0 && (
+              <div className="p-4 rounded-xl bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 border border-primary/10" data-testid="ai-insights-panel">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <span className="text-xs font-medium text-primary uppercase tracking-wide">AI Learning Coach</span>
+                </div>
+                <div className="space-y-2">
+                  {aiInsights.map((insight, i) => (
+                    <div key={i} className="flex items-start gap-3 group" data-testid={`insight-${i}`}>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-card border flex-shrink-0 mt-0.5">
+                        {insight.icon === "lightbulb" && <Lightbulb className="h-3.5 w-3.5 text-gold" />}
+                        {insight.icon === "trending" && <TrendingUp className="h-3.5 w-3.5 text-success" />}
+                        {insight.icon === "target" && <Target className="h-3.5 w-3.5 text-primary" />}
+                        {insight.icon === "flame" && <Flame className="h-3.5 w-3.5 text-gold" />}
+                        {insight.icon === "brain" && <Brain className="h-3.5 w-3.5 text-primary" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm leading-relaxed">{insight.text}</p>
+                      </div>
+                      {insight.action === "quiz" && onStartDailyQuiz && (
+                        <Button variant="ghost" size="sm" onClick={onStartDailyQuiz} className="gap-1 flex-shrink-0" aria-label="Start quiz now" data-testid={`button-insight-action-${i}`}>
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Daily Quiz */}
             {dailyQuizStatus?.hasDueTopics && onStartDailyQuiz && (
               <div className="p-5 rounded-xl bg-primary/5 border border-primary/20">
@@ -427,7 +517,7 @@ export function Dashboard({
           </TabsContent>
 
           {/* SKILLS TAB */}
-          <TabsContent value="skills" className="space-y-6" data-testid="section-skills-profile">
+          <TabsContent value="skills" className="space-y-6" role="tabpanel" aria-label="Your transferable skills profile" data-testid="section-skills-profile">
             {skillsData && skillsData.skills.length > 0 ? (
               <>
                 {/* Skills Summary */}
@@ -460,39 +550,47 @@ export function Dashboard({
                   </div>
                 </div>
 
-                {/* Skills List */}
+                {/* Skills List with Progress Visualization */}
                 <div className="space-y-3">
-                  {skillsData.skills.map((skill, index) => (
-                    <div key={skill.name} className="p-4 rounded-lg bg-card border" data-testid={`skill-item-${index}`}>
-                      <div className="flex items-start gap-3">
-                        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                          skill.proficiencyLevel === "proficient" ? "bg-success/10" :
-                          skill.proficiencyLevel === "intermediate" ? "bg-gold/10" : "bg-primary/10"
-                        }`}>
-                          <Brain className={`h-4 w-4 ${
-                            skill.proficiencyLevel === "proficient" ? "text-success" :
-                            skill.proficiencyLevel === "intermediate" ? "text-gold" : "text-primary"
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-medium text-sm" data-testid={`text-skill-name-dashboard-${index}`}>{skill.name}</h3>
-                            <Badge variant="outline" className={`text-xs capitalize ${
-                              skill.proficiencyLevel === "proficient" ? "border-success/30 text-success" :
-                              skill.proficiencyLevel === "intermediate" ? "border-gold/30 text-gold" : "border-primary/30 text-primary"
-                            }`}>{skill.proficiencyLevel}</Badge>
+                  {skillsData.skills.map((skill, index) => {
+                    const proficiencyPercent = skill.proficiencyLevel === "proficient" ? 100 : skill.proficiencyLevel === "intermediate" ? 66 : 33;
+                    const proficiencyColor = skill.proficiencyLevel === "proficient" ? "bg-success" : skill.proficiencyLevel === "intermediate" ? "bg-gold" : "bg-primary";
+                    return (
+                      <div key={skill.name} className="p-4 rounded-lg bg-card border group transition-all hover:border-primary/30" data-testid={`skill-item-${index}`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${
+                            skill.proficiencyLevel === "proficient" ? "bg-success/10" :
+                            skill.proficiencyLevel === "intermediate" ? "bg-gold/10" : "bg-primary/10"
+                          }`}>
+                            <Brain className={`h-4 w-4 ${
+                              skill.proficiencyLevel === "proficient" ? "text-success" :
+                              skill.proficiencyLevel === "intermediate" ? "text-gold" : "text-primary"
+                            }`} />
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">{skill.description}</p>
-                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                            <Briefcase className="h-3 w-3 text-muted-foreground" />
-                            {skill.relevantCareers.slice(0, 3).map((career, i) => (
-                              <Badge key={career} variant="secondary" className="text-xs" data-testid={`badge-career-${index}-${i}`}>{career}</Badge>
-                            ))}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <h3 className="font-medium text-sm" data-testid={`text-skill-name-dashboard-${index}`}>{skill.name}</h3>
+                              <span className={`text-xs font-medium capitalize ${
+                                skill.proficiencyLevel === "proficient" ? "text-success" :
+                                skill.proficiencyLevel === "intermediate" ? "text-gold" : "text-primary"
+                              }`}>{skill.proficiencyLevel}</span>
+                            </div>
+                            {/* Skill Progress Bar */}
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden mb-2">
+                              <div className={`h-full ${proficiencyColor} rounded-full transition-all duration-500`} style={{ width: `${proficiencyPercent}%` }} />
+                            </div>
+                            <p className="text-xs text-muted-foreground">{skill.description}</p>
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              <Briefcase className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                              {skill.relevantCareers.slice(0, 3).map((career, i) => (
+                                <Badge key={career} variant="secondary" className="text-xs" data-testid={`badge-career-${index}-${i}`}>{career}</Badge>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -508,26 +606,61 @@ export function Dashboard({
           </TabsContent>
 
           {/* PROGRESS TAB */}
-          <TabsContent value="progress" className="space-y-6">
+          <TabsContent value="progress" className="space-y-6" role="tabpanel" aria-label="Your learning progress">
+            {/* Streak Visualization */}
+            {userProfile.currentStreak > 0 && (
+              <div className="p-5 rounded-xl bg-gradient-to-r from-gold/10 via-gold/5 to-gold/10 border border-gold/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Flame className="h-5 w-5 text-gold" />
+                    <span className="font-serif text-lg font-medium">{userProfile.currentStreak}-Day Streak</span>
+                  </div>
+                  {userProfile.longestStreak > userProfile.currentStreak && (
+                    <span className="text-xs text-muted-foreground">Best: {userProfile.longestStreak} days</span>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: 7 }).map((_, i) => {
+                    const isActive = i < Math.min(userProfile.currentStreak, 7);
+                    const isMilestone = (i + 1) === 7;
+                    return (
+                      <div 
+                        key={i} 
+                        className={`flex-1 h-2 rounded-full transition-all ${
+                          isActive ? (isMilestone ? "bg-gold" : "bg-gold/60") : "bg-muted"
+                        }`}
+                        aria-label={`Day ${i + 1}: ${isActive ? "completed" : "pending"}`}
+                      />
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {userProfile.currentStreak >= 7 
+                    ? "Week complete! Keep building your learning habit." 
+                    : `${7 - userProfile.currentStreak} more day${7 - userProfile.currentStreak !== 1 ? 's' : ''} to complete the week`}
+                </p>
+              </div>
+            )}
+
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 rounded-lg bg-card border text-center">
-                <Zap className="h-5 w-5 text-gold mx-auto mb-1" />
+              <div className="p-4 rounded-lg bg-card border text-center group hover:border-gold/30 transition-colors">
+                <Zap className="h-5 w-5 text-gold mx-auto mb-1 group-hover:scale-110 transition-transform" />
                 <p className="text-2xl font-semibold text-gold tabular-nums">{userProfile.totalXP.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Total XP</p>
               </div>
-              <div className="p-4 rounded-lg bg-card border text-center">
-                <BookOpen className="h-5 w-5 text-primary mx-auto mb-1" />
+              <div className="p-4 rounded-lg bg-card border text-center group hover:border-primary/30 transition-colors">
+                <BookOpen className="h-5 w-5 text-primary mx-auto mb-1 group-hover:scale-110 transition-transform" />
                 <p className="text-2xl font-semibold tabular-nums">{lectureHistory.length}</p>
                 <p className="text-xs text-muted-foreground">Lectures</p>
               </div>
-              <div className="p-4 rounded-lg bg-card border text-center">
-                <Target className={`h-5 w-5 mx-auto mb-1 ${averageAccuracy >= 80 ? "text-success" : averageAccuracy >= 60 ? "text-gold" : "text-muted-foreground"}`} />
+              <div className="p-4 rounded-lg bg-card border text-center group hover:border-success/30 transition-colors">
+                <Target className={`h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform ${averageAccuracy >= 80 ? "text-success" : averageAccuracy >= 60 ? "text-gold" : "text-muted-foreground"}`} />
                 <p className={`text-2xl font-semibold tabular-nums ${averageAccuracy >= 80 ? "text-success" : averageAccuracy >= 60 ? "text-gold" : ""}`}>{averageAccuracy}%</p>
                 <p className="text-xs text-muted-foreground">Accuracy</p>
               </div>
-              <div className="p-4 rounded-lg bg-card border text-center">
-                <Flame className={`h-5 w-5 mx-auto mb-1 ${userProfile.currentStreak > 0 ? "text-gold" : "text-muted-foreground"}`} />
+              <div className="p-4 rounded-lg bg-card border text-center group hover:border-gold/30 transition-colors">
+                <Flame className={`h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform ${userProfile.currentStreak > 0 ? "text-gold" : "text-muted-foreground"}`} />
                 <p className="text-2xl font-semibold tabular-nums">{userProfile.currentStreak}</p>
                 <p className="text-xs text-muted-foreground">Day Streak</p>
               </div>
