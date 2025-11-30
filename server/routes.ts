@@ -1097,7 +1097,7 @@ Important:
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  app.post("/api/parse-file", async (req, res) => {
+  app.post("/api/parse-file", isAuthenticated, async (req: any, res) => {
     try {
       const { fileData, fileType, fileName } = req.body;
       

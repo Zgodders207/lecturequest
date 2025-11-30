@@ -2,7 +2,7 @@
 
 ## Overview
 
-LectureQuest is a single-page React application that transforms passive lecture attendance into active learning through gamification. Students upload lecture materials (text/PDF), take AI-generated quizzes, and track their progress through an XP-based leveling system with achievements and daily challenges.
+LectureQuest is a multi-user React application that transforms passive lecture attendance into active learning through gamification. Students upload lecture materials (text/PDF), take AI-generated quizzes, and track their progress through an XP-based leveling system with 100 achievements, daily challenges, and social competition.
 
 The application uses an AI-powered quiz generation system (Claude API) to create personalized learning experiences based on lecture content and identified weak areas.
 
@@ -10,7 +10,31 @@ The application uses an AI-powered quiz generation system (Claude API) to create
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+- **Authentication**: Added Replit Auth (OpenID Connect) supporting Google, GitHub, Apple logins
+- **Multi-User Data**: All data scoped by userId for complete data isolation
+- **Multi-Upload**: Batch upload up to 20 lectures at once with progress tracking
+- **Missed Lectures**: Identify and manage missed calendar lectures with "forget" option
+- **Daily Quiz Preview**: See topic preview before starting daily quiz
+- **Friends System**: Send/accept friend requests, weekly XP leaderboard
+- **100 Achievements**: Expanded from 11 to 100 achievements across 9 categories
+
 ## System Architecture
+
+### Authentication System
+
+**Implementation**: Replit Auth via OpenID Connect (server/replitAuth.ts)
+- Supports Google, GitHub, Apple, and email/password login
+- Session storage in PostgreSQL (sessions table) with 7-day TTL
+- SESSION_SECRET for secure session management
+- Protected routes use isAuthenticated middleware
+
+**Auth Routes**:
+- `/api/login` - Initiates login flow
+- `/api/logout` - Ends session and redirects
+- `/api/callback` - OIDC callback handler
+- `/api/auth/user` - Returns authenticated user data
 
 ### Frontend Architecture
 
@@ -33,6 +57,8 @@ Preferred communication style: Simple, everyday language.
 - Lecture history
 - Current quiz state
 - View navigation (dashboard, upload, quiz, results, achievements)
+
+**Auth Hooks**: `client/src/hooks/useAuth.ts` for authentication state
 
 **Dashboard Design**: Clean, tab-based interface in `client/src/components/dashboard.tsx`:
 - Compact header with stats bar (Level, XP, Streak, Progress)
@@ -100,12 +126,17 @@ Preferred communication style: Simple, everyday language.
 
 **Database Tables**:
 - `users` - User profiles with level, XP, achievements, streaks
+- `sessions` - Session storage for Replit Auth (connect-pg-simple)
 - `lectures` - Uploaded lecture content with quiz results and skills
 - `topic_review_stats` - SM-2 spaced repetition tracking per topic
 - `review_events` - Audit log of all review activities
 - `daily_quiz_plans` - Generated daily quiz plans with completion status
 - `calendar_settings` - ICS calendar URL and sync status
 - `calendar_events` - Cached calendar events
+- `friendships` - Friend relationships with status (pending/accepted/declined)
+- `weeklyXpLogs` - Weekly XP tracking for leaderboards
+- `dismissedLectures` - Dismissed/forgotten missed lectures
+- `lectureUploads` - Batch upload tracking with status
 
 **WebSocket Configuration**: Uses `ws` package for Neon serverless connection in Node.js environment
 
