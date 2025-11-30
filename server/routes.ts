@@ -65,9 +65,13 @@ const anthropic = new Anthropic({
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
 const generateQuizRequestSchema = z.object({
-  content: z.string().min(50, "Lecture content must be at least 50 characters"),
+  content: z.string().min(50, "Lecture content must be at least 50 characters").optional(),
+  lectureId: z.string().optional(),
   title: z.string().optional(),
-});
+}).refine(
+  (data) => data.content || data.lectureId,
+  { message: "Either content or lectureId must be provided" }
+);
 
 const generateDailyQuizRequestSchema = z.object({
   weakTopics: z.array(z.string()),
@@ -550,7 +554,27 @@ export async function registerRoutes(
         });
       }
 
-      const { content, title } = parsed.data;
+      const { content: providedContent, lectureId, title } = parsed.data;
+
+      let content = providedContent;
+      
+      if (lectureId && !content) {
+        const lectureContent = await storage.getLectureContent(lectureId);
+        if (!lectureContent) {
+          return res.status(404).json({
+            error: "Lecture not found",
+            message: `No lecture content found for lectureId: ${lectureId}`
+          });
+        }
+        content = lectureContent;
+      }
+
+      if (!content) {
+        return res.status(400).json({
+          error: "No content available",
+          message: "Either provide content directly or a valid lectureId"
+        });
+      }
 
       const prompt = `Analyze this lecture content and generate a quiz with transferable skills identification.
 

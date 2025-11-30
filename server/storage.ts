@@ -477,7 +477,7 @@ export class DatabaseStorage implements IStorage {
       
       return dbTopicStatsToTopicStats(updated);
     } else {
-      const { easeFactor, interval, nextDue } = calculateNextReview(2.5, 0, score, 0);
+      const { easeFactor, interval, nextDue } = calculateNextReview(2.5, 1, score, 0);
       
       const [inserted] = await db.insert(topicReviewStatsTable).values({
         topic,
