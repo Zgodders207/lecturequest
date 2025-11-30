@@ -96,14 +96,23 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Storage
 
-**Current Implementation**: In-memory storage with `MemStorage` class in `server/storage.ts` (minimal implementation)
+**Current Implementation**: PostgreSQL database with Neon serverless driver and Drizzle ORM
 
-**Schema Definition**: Drizzle ORM configuration prepared in `drizzle.config.ts` for PostgreSQL
+**Database Tables**:
+- `users` - User profiles with level, XP, achievements, streaks
+- `lectures` - Uploaded lecture content with quiz results and skills
+- `topic_review_stats` - SM-2 spaced repetition tracking per topic
+- `review_events` - Audit log of all review activities
+- `daily_quiz_plans` - Generated daily quiz plans with completion status
+- `calendar_settings` - ICS calendar URL and sync status
+- `calendar_events` - Cached calendar events
+
+**WebSocket Configuration**: Uses `ws` package for Neon serverless connection in Node.js environment
+
+**Schema Definition**: Drizzle ORM configuration in `drizzle.config.ts`
 - Schema defined in `shared/schema.ts`
-- Migration output directory: `./migrations`
+- Migration: `npm run db:push` for schema sync
 - Database connection via `DATABASE_URL` environment variable
-
-**Note**: The application is currently configured for database integration but not actively using persistent storage. All user data exists in client-side state.
 
 ### Gamification System
 
