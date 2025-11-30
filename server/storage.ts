@@ -35,9 +35,14 @@ import type {
   DbCalendarEvent,
   DbDailyQuizPlan,
   DbCachedQuestion,
+  User,
+  UpsertUser,
 } from "@shared/schema";
 
 export interface IStorage {
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
   getUserProfile(): Promise<UserProfile>;
   updateUserProfile(profile: Partial<UserProfile>): Promise<UserProfile>;
   resetUserProfile(): Promise<UserProfile>;
@@ -164,6 +169,26 @@ function dbDailyQuizPlanToPlan(dbPlan: DbDailyQuizPlan): DailyQuizPlan {
 
 export class DatabaseStorage implements IStorage {
   
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(usersTable)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: usersTable.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
   async getUserProfile(): Promise<UserProfile> {
     const users = await db.select().from(usersTable).limit(1);
     if (users.length === 0) {

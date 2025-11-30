@@ -10,6 +10,7 @@ import { randomUUID } from "crypto";
 import type { CalendarEvent, CalendarSettings } from "@shared/schema";
 import { calendarSettingsSchema } from "@shared/schema";
 import type { VEvent } from "node-ical";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 const require = createRequire(import.meta.url);
 const nodeIcalModule = require("node-ical");
@@ -544,7 +545,20 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  app.post("/api/generate-quiz", async (req, res) => {
+  await setupAuth(app);
+
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  app.post("/api/generate-quiz", isAuthenticated, async (req, res) => {
     try {
       const parsed = generateQuizRequestSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -699,7 +713,7 @@ Requirements:
   });
 
   // Get daily quiz status - shows due topics using active recall algorithm
-  app.get("/api/daily-quiz/status", async (req, res) => {
+  app.get("/api/daily-quiz/status", isAuthenticated, async (req, res) => {
     try {
       const dueTopics = await storage.getDueTopics(10);
       const currentPlan = await storage.getCurrentDailyQuizPlan();
@@ -967,7 +981,7 @@ Important:
   });
 
   // Complete daily quiz and update spaced repetition stats
-  app.post("/api/daily-quiz/complete", async (req, res) => {
+  app.post("/api/daily-quiz/complete", isAuthenticated, async (req, res) => {
     try {
       const { planId, score, topicScores } = req.body;
       
@@ -1145,7 +1159,7 @@ Important:
     }
   });
 
-  app.get("/api/profile", async (req, res) => {
+  app.get("/api/profile", isAuthenticated, async (req, res) => {
     try {
       const profile = await storage.getUserProfile();
       res.json(profile);
@@ -1155,7 +1169,7 @@ Important:
     }
   });
 
-  app.patch("/api/profile", async (req, res) => {
+  app.patch("/api/profile", isAuthenticated, async (req, res) => {
     try {
       const parsed = updateProfileSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1172,7 +1186,7 @@ Important:
     }
   });
 
-  app.post("/api/profile/reset", async (req, res) => {
+  app.post("/api/profile/reset", isAuthenticated, async (req, res) => {
     try {
       const profile = await storage.resetUserProfile();
       res.json(profile);
@@ -1182,7 +1196,7 @@ Important:
     }
   });
 
-  app.post("/api/profile/demo", async (req, res) => {
+  app.post("/api/profile/demo", isAuthenticated, async (req, res) => {
     try {
       const data = await storage.loadDemoData();
       res.json(data);
@@ -1192,7 +1206,7 @@ Important:
     }
   });
 
-  app.get("/api/lectures", async (req, res) => {
+  app.get("/api/lectures", isAuthenticated, async (req, res) => {
     try {
       const lectures = await storage.getLectures();
       res.json(lectures);
@@ -1202,7 +1216,7 @@ Important:
     }
   });
 
-  app.get("/api/lectures/:id", async (req, res) => {
+  app.get("/api/lectures/:id", isAuthenticated, async (req, res) => {
     try {
       const lecture = await storage.getLecture(req.params.id);
       if (!lecture) {
@@ -1215,7 +1229,7 @@ Important:
     }
   });
 
-  app.post("/api/lectures", async (req, res) => {
+  app.post("/api/lectures", isAuthenticated, async (req, res) => {
     try {
       const parsed = addLectureSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1232,7 +1246,7 @@ Important:
     }
   });
 
-  app.patch("/api/lectures/:id", async (req, res) => {
+  app.patch("/api/lectures/:id", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const parsed = updateLectureSchema.safeParse(req.body);
@@ -1253,7 +1267,7 @@ Important:
     }
   });
 
-  app.delete("/api/lectures/:id", async (req, res) => {
+  app.delete("/api/lectures/:id", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteLecture(id);
@@ -1267,7 +1281,7 @@ Important:
     }
   });
 
-  app.get("/api/weak-topics", async (req, res) => {
+  app.get("/api/weak-topics", isAuthenticated, async (req, res) => {
     try {
       const topics = await storage.getWeakTopics();
       res.json(topics);
@@ -1277,7 +1291,7 @@ Important:
     }
   });
 
-  app.get("/api/skills", async (req, res) => {
+  app.get("/api/skills", isAuthenticated, async (req, res) => {
     try {
       const lectures = await storage.getLectures();
       
@@ -1341,7 +1355,7 @@ Important:
     }
   });
 
-  app.get("/api/calendar", async (req, res) => {
+  app.get("/api/calendar", isAuthenticated, async (req, res) => {
     try {
       const settings = await storage.getCalendarSettings();
       const events = await storage.getCalendarEvents();
@@ -1398,7 +1412,7 @@ Important:
     }
   });
 
-  app.post("/api/calendar", async (req, res) => {
+  app.post("/api/calendar", isAuthenticated, async (req, res) => {
     try {
       const parsed = calendarSettingsSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1450,7 +1464,7 @@ Important:
     }
   });
 
-  app.post("/api/calendar/refresh", async (req, res) => {
+  app.post("/api/calendar/refresh", isAuthenticated, async (req, res) => {
     try {
       const settings = await storage.getCalendarSettings();
       if (!settings) {
@@ -1506,7 +1520,7 @@ Important:
     }
   });
 
-  app.delete("/api/calendar", async (req, res) => {
+  app.delete("/api/calendar", isAuthenticated, async (req, res) => {
     try {
       await storage.clearCalendarSettings();
       res.json({ success: true, message: "Calendar removed" });

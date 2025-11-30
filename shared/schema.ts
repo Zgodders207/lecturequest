@@ -1,12 +1,28 @@
 import { z } from "zod";
-import { pgTable, text, integer, real, boolean, timestamp, jsonb, serial } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgTable, text, integer, real, boolean, timestamp, jsonb, serial, varchar, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
 // ==================== DATABASE TABLES ====================
 
-// User profile table
+// Session storage table for Replit Auth
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User profile table with Replit Auth integration
 export const usersTable = pgTable("users", {
-  id: serial("id").primaryKey(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
   level: integer("level").notNull().default(1),
   totalXP: integer("total_xp").notNull().default(0),
   xpToNextLevel: integer("xp_to_next_level").notNull().default(400),
@@ -19,12 +35,14 @@ export const usersTable = pgTable("users", {
   needsPractice: jsonb("needs_practice").notNull().default([]),
   powerUps: jsonb("power_ups").notNull().default({}),
   lastActivityDate: text("last_activity_date"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Lectures table - stores uploaded lecture content
 export const lecturesTable = pgTable("lectures", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   title: text("title").notNull(),
   date: text("date").notNull(),
   content: text("content").notNull(),
@@ -43,6 +61,7 @@ export const lecturesTable = pgTable("lectures", {
 // Topic review stats for spaced repetition algorithm
 export const topicReviewStatsTable = pgTable("topic_review_stats", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   topic: text("topic").notNull(),
   lectureId: integer("lecture_id").notNull(),
   lectureTitle: text("lecture_title").notNull(),
@@ -59,6 +78,7 @@ export const topicReviewStatsTable = pgTable("topic_review_stats", {
 // Review events history
 export const reviewEventsTable = pgTable("review_events", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   topicId: text("topic_id").notNull(),
   topic: text("topic").notNull(),
   lectureId: integer("lecture_id").notNull(),
@@ -72,6 +92,7 @@ export const reviewEventsTable = pgTable("review_events", {
 // Daily quiz plans
 export const dailyQuizPlansTable = pgTable("daily_quiz_plans", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   generatedAt: text("generated_at").notNull(),
   topics: jsonb("topics").notNull().default([]),
   lectureExcerpts: jsonb("lecture_excerpts").notNull().default([]),
@@ -84,6 +105,7 @@ export const dailyQuizPlansTable = pgTable("daily_quiz_plans", {
 // Cached quiz questions for each topic (to avoid regenerating)
 export const cachedQuestionsTable = pgTable("cached_questions", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   topic: text("topic").notNull(),
   lectureId: integer("lecture_id").notNull(),
   question: text("question").notNull(),
@@ -98,6 +120,7 @@ export const cachedQuestionsTable = pgTable("cached_questions", {
 // Calendar settings
 export const calendarSettingsTable = pgTable("calendar_settings", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   url: text("url").notNull(),
   lastSync: text("last_sync"),
   lastSyncStatus: text("last_sync_status"),
@@ -108,6 +131,7 @@ export const calendarSettingsTable = pgTable("calendar_settings", {
 // Calendar events
 export const calendarEventsTable = pgTable("calendar_events", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   uid: text("uid").notNull(),
   title: text("title").notNull(),
   eventType: text("event_type").notNull(),
@@ -131,6 +155,8 @@ export const insertCalendarEventSchema = createInsertSchema(calendarEventsTable)
 
 // Select types
 export type DbUser = typeof usersTable.$inferSelect;
+export type User = typeof usersTable.$inferSelect;
+export type UpsertUser = typeof usersTable.$inferInsert;
 export type DbLecture = typeof lecturesTable.$inferSelect;
 export type DbTopicReviewStats = typeof topicReviewStatsTable.$inferSelect;
 export type DbReviewEvent = typeof reviewEventsTable.$inferSelect;
