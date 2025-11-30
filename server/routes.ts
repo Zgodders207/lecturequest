@@ -558,8 +558,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/generate-quiz", isAuthenticated, async (req, res) => {
+  app.post("/api/generate-quiz", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = generateQuizRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -573,7 +574,7 @@ export async function registerRoutes(
       let content = providedContent;
       
       if (lectureId && !content) {
-        const lectureContent = await storage.getLectureContent(lectureId);
+        const lectureContent = await storage.getLectureContent(userId, lectureId);
         if (!lectureContent) {
           return res.status(404).json({
             error: "Lecture not found",
@@ -713,12 +714,13 @@ Requirements:
   });
 
   // Get daily quiz status - shows due topics using active recall algorithm
-  app.get("/api/daily-quiz/status", isAuthenticated, async (req, res) => {
+  app.get("/api/daily-quiz/status", isAuthenticated, async (req: any, res) => {
     try {
-      const dueTopics = await storage.getDueTopics(10);
-      const currentPlan = await storage.getCurrentDailyQuizPlan();
-      const lectures = await storage.getLectures();
-      const profile = await storage.getUserProfile();
+      const userId = req.user.claims.sub;
+      const dueTopics = await storage.getDueTopics(userId, 10);
+      const currentPlan = await storage.getCurrentDailyQuizPlan(userId);
+      const lectures = await storage.getLectures(userId);
+      const profile = await storage.getUserProfile(userId);
       
       // Get topic count from all lectures
       const allTopics = new Set<string>();
@@ -726,23 +728,45 @@ Requirements:
         lecture.incorrectTopics.forEach(topic => allTopics.add(topic));
       });
       
+      // Determine reason for each topic
+      const topicsWithReasons = dueTopics.map(t => {
+        const daysSinceReview = Math.floor((new Date().getTime() - new Date(t.lastReviewed).getTime()) / (1000 * 60 * 60 * 24));
+        const isOverdue = new Date(t.nextDue) < new Date();
+        const isWeak = t.lastScore < 70;
+        const isNew = t.reviewCount <= 1;
+        
+        let reason: "overdue" | "weak" | "new" | "due" = "due";
+        if (isOverdue) reason = "overdue";
+        else if (isWeak) reason = "weak";
+        else if (isNew) reason = "new";
+        
+        return {
+          topic: t.topic,
+          lectureTitle: t.lectureTitle,
+          lastScore: t.lastScore,
+          daysSinceReview,
+          streak: t.streak,
+          isOverdue,
+          reason,
+          reviewCount: t.reviewCount,
+        };
+      });
+      
       res.json({
         hasDueTopics: dueTopics.length > 0,
         dueTopicsCount: dueTopics.length,
         totalTopicsTracked: allTopics.size,
-        dueTopics: dueTopics.map(t => ({
-          topic: t.topic,
-          lectureTitle: t.lectureTitle,
-          lastScore: t.lastScore,
-          daysSinceReview: Math.floor((new Date().getTime() - new Date(t.lastReviewed).getTime()) / (1000 * 60 * 60 * 24)),
-          streak: t.streak,
-          isOverdue: new Date(t.nextDue) < new Date(),
-        })),
+        dueTopics: topicsWithReasons,
         currentPlan: currentPlan ? {
           id: currentPlan.id,
           topicsCount: currentPlan.topics.length,
           generatedAt: currentPlan.generatedAt,
           completed: currentPlan.completed,
+          topics: currentPlan.topics.map(t => ({
+            topic: t.topic,
+            lectureTitle: t.lectureTitle,
+            reason: t.reason,
+          })),
         } : null,
         weeklyStreak: profile.currentStreak,
       });
@@ -753,12 +777,13 @@ Requirements:
   });
 
   // Generate daily quiz using server-side active recall topic selection
-  app.post("/api/generate-daily-quiz", async (req, res) => {
+  app.post("/api/generate-daily-quiz", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       // Get due topics from spaced repetition algorithm
-      const dueTopics = await storage.getDueTopics(10);
-      const lectures = await storage.getLectures();
-      const profile = await storage.getUserProfile();
+      const dueTopics = await storage.getDueTopics(userId, 10);
+      const lectures = await storage.getLectures(userId);
+      const profile = await storage.getUserProfile(userId);
       
       // If no tracked topics yet, use weak topics from lectures
       let topicsToReview: { topic: string; lectureId: string; lectureTitle: string; priority: number; reason: "due" | "weak" | "overdue" | "new"; daysSinceReview: number }[] = [];
@@ -827,7 +852,7 @@ Requirements:
       const seenLectures = new Set<string>();
       for (const t of selectedTopics) {
         if (!seenLectures.has(t.lectureId)) {
-          const lectureContent = await storage.getLectureContent(t.lectureId);
+          const lectureContent = await storage.getLectureContent(userId, t.lectureId);
           const lecture = lectures.find(l => l.id === t.lectureId);
           if (lecture && lectureContent) {
             lectureExcerpts.push({
@@ -933,7 +958,7 @@ Important:
 
       // Create and store the daily quiz plan
       const planId = `plan-${Date.now()}`;
-      const plan = await storage.setCurrentDailyQuizPlan({
+      const plan = await storage.setCurrentDailyQuizPlan(userId, {
         id: planId,
         generatedAt: new Date().toISOString(),
         topics: selectedTopics,
@@ -981,15 +1006,16 @@ Important:
   });
 
   // Complete daily quiz and update spaced repetition stats
-  app.post("/api/daily-quiz/complete", isAuthenticated, async (req, res) => {
+  app.post("/api/daily-quiz/complete", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { planId, score, topicScores } = req.body;
       
       if (typeof score !== "number" || score < 0 || score > 100) {
         return res.status(400).json({ error: "Invalid score" });
       }
       
-      const currentPlan = await storage.getCurrentDailyQuizPlan();
+      const currentPlan = await storage.getCurrentDailyQuizPlan(userId);
       if (!currentPlan || currentPlan.id !== planId) {
         return res.status(400).json({ error: "Invalid or expired quiz plan" });
       }
@@ -1001,6 +1027,7 @@ Important:
           const topicData = currentPlan.topics.find(t => t.topic === ts.topic);
           if (topicData) {
             await storage.updateTopicReviewStats(
+              userId,
               ts.topic,
               topicData.lectureId,
               topicData.lectureTitle,
@@ -1008,7 +1035,7 @@ Important:
             );
             
             // Add review event
-            await storage.addReviewEvent({
+            await storage.addReviewEvent(userId, {
               topicId: ts.topic,
               topic: ts.topic,
               lectureId: topicData.lectureId,
@@ -1021,10 +1048,10 @@ Important:
       }
       
       // Complete the plan
-      const completedPlan = await storage.completeDailyQuizPlan(score);
+      const completedPlan = await storage.completeDailyQuizPlan(userId, score);
       
       // Update user profile with activity
-      const profile = await storage.getUserProfile();
+      const profile = await storage.getUserProfile(userId);
       const today = new Date().toISOString().split('T')[0];
       const lastActivity = profile.lastActivityDate;
       
@@ -1043,13 +1070,13 @@ Important:
         newStreak = 1;
       }
       
-      await storage.updateUserProfile({
+      await storage.updateUserProfile(userId, {
         lastActivityDate: today,
         currentStreak: newStreak,
         longestStreak: Math.max(profile.longestStreak, newStreak),
       });
       
-      const nextDueTopics = await storage.getDueTopics(5);
+      const nextDueTopics = await storage.getDueTopics(userId, 5);
       res.json({
         success: true,
         completedPlan,
@@ -1159,9 +1186,10 @@ Important:
     }
   });
 
-  app.get("/api/profile", isAuthenticated, async (req, res) => {
+  app.get("/api/profile", isAuthenticated, async (req: any, res) => {
     try {
-      const profile = await storage.getUserProfile();
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
       res.json(profile);
     } catch (error: any) {
       console.error("Error fetching profile:", error);
@@ -1169,8 +1197,9 @@ Important:
     }
   });
 
-  app.patch("/api/profile", isAuthenticated, async (req, res) => {
+  app.patch("/api/profile", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = updateProfileSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -1178,7 +1207,17 @@ Important:
           details: parsed.error.issues 
         });
       }
-      const updatedProfile = await storage.updateUserProfile(parsed.data);
+      
+      // Track XP earned for weekly leaderboard
+      if (parsed.data.totalXP !== undefined) {
+        const currentProfile = await storage.getUserProfile(userId);
+        const xpDiff = parsed.data.totalXP - currentProfile.totalXP;
+        if (xpDiff > 0) {
+          await storage.logXpEarned(userId, xpDiff);
+        }
+      }
+      
+      const updatedProfile = await storage.updateUserProfile(userId, parsed.data);
       res.json(updatedProfile);
     } catch (error: any) {
       console.error("Error updating profile:", error);
@@ -1186,9 +1225,10 @@ Important:
     }
   });
 
-  app.post("/api/profile/reset", isAuthenticated, async (req, res) => {
+  app.post("/api/profile/reset", isAuthenticated, async (req: any, res) => {
     try {
-      const profile = await storage.resetUserProfile();
+      const userId = req.user.claims.sub;
+      const profile = await storage.resetUserProfile(userId);
       res.json(profile);
     } catch (error: any) {
       console.error("Error resetting profile:", error);
@@ -1196,9 +1236,10 @@ Important:
     }
   });
 
-  app.post("/api/profile/demo", isAuthenticated, async (req, res) => {
+  app.post("/api/profile/demo", isAuthenticated, async (req: any, res) => {
     try {
-      const data = await storage.loadDemoData();
+      const userId = req.user.claims.sub;
+      const data = await storage.loadDemoData(userId);
       res.json(data);
     } catch (error: any) {
       console.error("Error loading demo data:", error);
@@ -1206,9 +1247,10 @@ Important:
     }
   });
 
-  app.get("/api/lectures", isAuthenticated, async (req, res) => {
+  app.get("/api/lectures", isAuthenticated, async (req: any, res) => {
     try {
-      const lectures = await storage.getLectures();
+      const userId = req.user.claims.sub;
+      const lectures = await storage.getLectures(userId);
       res.json(lectures);
     } catch (error: any) {
       console.error("Error fetching lectures:", error);
@@ -1216,9 +1258,10 @@ Important:
     }
   });
 
-  app.get("/api/lectures/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/lectures/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const lecture = await storage.getLecture(req.params.id);
+      const userId = req.user.claims.sub;
+      const lecture = await storage.getLecture(userId, req.params.id);
       if (!lecture) {
         return res.status(404).json({ error: "Lecture not found" });
       }
@@ -1229,8 +1272,9 @@ Important:
     }
   });
 
-  app.post("/api/lectures", isAuthenticated, async (req, res) => {
+  app.post("/api/lectures", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = addLectureSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -1238,7 +1282,7 @@ Important:
           details: parsed.error.issues 
         });
       }
-      const lecture = await storage.addLecture(parsed.data);
+      const lecture = await storage.addLecture(userId, parsed.data);
       res.json(lecture);
     } catch (error: any) {
       console.error("Error adding lecture:", error);
@@ -1246,8 +1290,77 @@ Important:
     }
   });
 
-  app.patch("/api/lectures/:id", isAuthenticated, async (req, res) => {
+  // Batch upload endpoint for multiple lectures
+  app.post("/api/lectures/batch", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const { lectures: lectureInputs } = req.body;
+      
+      if (!Array.isArray(lectureInputs) || lectureInputs.length === 0) {
+        return res.status(400).json({ error: "Invalid request: lectures array required" });
+      }
+      
+      if (lectureInputs.length > 20) {
+        return res.status(400).json({ error: "Maximum 20 lectures per batch" });
+      }
+      
+      const batchId = `batch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Process lectures in parallel
+      const results = await Promise.allSettled(
+        lectureInputs.map(async (input: { title: string; content: string; filename?: string }, index: number) => {
+          const parsed = addLectureSchema.safeParse({
+            title: input.title,
+            content: input.content,
+          });
+          
+          if (!parsed.success) {
+            throw new Error(`Invalid lecture data at index ${index}: ${parsed.error.message}`);
+          }
+          
+          const lecture = await storage.addLecture(userId, parsed.data);
+          return { 
+            index, 
+            lectureId: lecture.id, 
+            title: lecture.title, 
+            status: "completed" as const 
+          };
+        })
+      );
+      
+      const processedResults = results.map((result, index) => {
+        if (result.status === "fulfilled") {
+          return result.value;
+        } else {
+          return {
+            index,
+            lectureId: null,
+            title: lectureInputs[index]?.title || `Lecture ${index + 1}`,
+            status: "error" as const,
+            error: result.reason?.message || "Unknown error"
+          };
+        }
+      });
+      
+      const successCount = processedResults.filter(r => r.status === "completed").length;
+      const errorCount = processedResults.filter(r => r.status === "error").length;
+      
+      res.json({
+        batchId,
+        total: lectureInputs.length,
+        successCount,
+        errorCount,
+        results: processedResults
+      });
+    } catch (error: any) {
+      console.error("Error in batch upload:", error);
+      res.status(500).json({ error: "Failed to process batch upload" });
+    }
+  });
+
+  app.patch("/api/lectures/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       const parsed = updateLectureSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1256,7 +1369,7 @@ Important:
           details: parsed.error.issues 
         });
       }
-      const updatedLecture = await storage.updateLecture(id, parsed.data);
+      const updatedLecture = await storage.updateLecture(userId, id, parsed.data);
       if (!updatedLecture) {
         return res.status(404).json({ error: "Lecture not found" });
       }
@@ -1267,10 +1380,11 @@ Important:
     }
   });
 
-  app.delete("/api/lectures/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/lectures/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { id } = req.params;
-      const deleted = await storage.deleteLecture(id);
+      const deleted = await storage.deleteLecture(userId, id);
       if (!deleted) {
         return res.status(404).json({ error: "Lecture not found" });
       }
@@ -1281,9 +1395,10 @@ Important:
     }
   });
 
-  app.get("/api/weak-topics", isAuthenticated, async (req, res) => {
+  app.get("/api/weak-topics", isAuthenticated, async (req: any, res) => {
     try {
-      const topics = await storage.getWeakTopics();
+      const userId = req.user.claims.sub;
+      const topics = await storage.getWeakTopics(userId);
       res.json(topics);
     } catch (error: any) {
       console.error("Error fetching weak topics:", error);
@@ -1291,9 +1406,10 @@ Important:
     }
   });
 
-  app.get("/api/skills", isAuthenticated, async (req, res) => {
+  app.get("/api/skills", isAuthenticated, async (req: any, res) => {
     try {
-      const lectures = await storage.getLectures();
+      const userId = req.user.claims.sub;
+      const lectures = await storage.getLectures(userId);
       
       const skillsMap = new Map<string, {
         name: string;
@@ -1355,11 +1471,15 @@ Important:
     }
   });
 
-  app.get("/api/calendar", isAuthenticated, async (req, res) => {
+  app.get("/api/calendar", isAuthenticated, async (req: any, res) => {
     try {
-      const settings = await storage.getCalendarSettings();
-      const events = await storage.getCalendarEvents();
-      const lectures = await storage.getLectures();
+      const userId = req.user.claims.sub;
+      const settings = await storage.getCalendarSettings(userId);
+      const events = await storage.getCalendarEvents(userId);
+      const lectures = await storage.getLectures(userId);
+      const dismissedLectures = await storage.getDismissedLectures(userId);
+      
+      const dismissedEventIds = new Set(dismissedLectures.map(d => d.calendarEventId));
       
       const lecturesOnly = events.filter(e => e.eventType === "lecture");
       const examsOnly = events.filter(e => e.eventType === "exam");
@@ -1378,7 +1498,7 @@ Important:
         return eventDate >= now && eventDate <= sevenDaysFromNow;
       });
       
-      const missingLectures = lecturesOnly.filter(e => {
+      const allMissingLectures = lecturesOnly.filter(e => {
         const eventDate = new Date(e.startsAt);
         if (eventDate >= now || eventDate < fourteenDaysAgo) return false;
         
@@ -1396,12 +1516,20 @@ Important:
         return !matchingLecture && !e.matchedLectureId;
       });
       
+      const missingLectures = allMissingLectures.filter(e => !dismissedEventIds.has(e.id));
+      const totalMissed = allMissingLectures.length;
+      const activeMissed = missingLectures.length;
+      const dismissedCount = totalMissed - activeMissed;
+      
       res.json({
         settings,
         events: lecturesOnly,
         upcomingLectures,
         upcomingExams,
         missingLectures,
+        totalMissed,
+        activeMissed,
+        dismissedCount,
         totalEvents: events.length,
         lectureCount: lecturesOnly.length,
         examCount: examsOnly.length,
@@ -1412,8 +1540,38 @@ Important:
     }
   });
 
-  app.post("/api/calendar", isAuthenticated, async (req, res) => {
+  app.post("/api/calendar/dismiss/:eventId", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const { eventId } = req.params;
+      const { reason } = req.body;
+      
+      await storage.dismissLecture(userId, eventId, reason);
+      
+      res.json({ success: true, message: "Lecture dismissed" });
+    } catch (error: any) {
+      console.error("Error dismissing lecture:", error);
+      res.status(500).json({ error: "Failed to dismiss lecture" });
+    }
+  });
+
+  app.delete("/api/calendar/dismiss/:eventId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { eventId } = req.params;
+      
+      await storage.undismissLecture(userId, eventId);
+      
+      res.json({ success: true, message: "Lecture restored" });
+    } catch (error: any) {
+      console.error("Error undismissing lecture:", error);
+      res.status(500).json({ error: "Failed to restore lecture" });
+    }
+  });
+
+  app.post("/api/calendar", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
       const parsed = calendarSettingsSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -1446,8 +1604,8 @@ Important:
         lastSyncStatus: "success",
       };
       
-      await storage.setCalendarSettings(settings);
-      await storage.setCalendarEvents(events);
+      await storage.setCalendarSettings(userId, settings);
+      await storage.setCalendarEvents(userId, events);
       
       const lecturesOnly = events.filter(e => e.eventType === "lecture");
       
@@ -1464,16 +1622,17 @@ Important:
     }
   });
 
-  app.post("/api/calendar/refresh", isAuthenticated, async (req, res) => {
+  app.post("/api/calendar/refresh", isAuthenticated, async (req: any, res) => {
     try {
-      const settings = await storage.getCalendarSettings();
+      const userId = req.user.claims.sub;
+      const settings = await storage.getCalendarSettings(userId);
       if (!settings) {
         return res.status(400).json({ error: "No calendar configured" });
       }
       
       const urlValidation = await validateCalendarUrlWithDns(settings.url);
       if (!urlValidation.valid) {
-        await storage.clearCalendarSettings();
+        await storage.clearCalendarSettings(userId);
         return res.status(400).json({ 
           error: "Stored calendar URL is invalid. Please reconnect your calendar."
         });
@@ -1488,7 +1647,7 @@ Important:
           lastSyncStatus: "error",
           lastSyncError: error,
         };
-        await storage.setCalendarSettings(updatedSettings);
+        await storage.setCalendarSettings(userId, updatedSettings);
         
         return res.status(400).json({ 
           error: "Failed to refresh calendar",
@@ -1503,8 +1662,8 @@ Important:
         lastSyncError: undefined,
       };
       
-      await storage.setCalendarSettings(updatedSettings);
-      await storage.setCalendarEvents(events);
+      await storage.setCalendarSettings(userId, updatedSettings);
+      await storage.setCalendarEvents(userId, events);
       
       const lecturesOnly = events.filter(e => e.eventType === "lecture");
       
@@ -1520,13 +1679,104 @@ Important:
     }
   });
 
-  app.delete("/api/calendar", isAuthenticated, async (req, res) => {
+  app.delete("/api/calendar", isAuthenticated, async (req: any, res) => {
     try {
-      await storage.clearCalendarSettings();
+      const userId = req.user.claims.sub;
+      await storage.clearCalendarSettings(userId);
       res.json({ success: true, message: "Calendar removed" });
     } catch (error: any) {
       console.error("Error removing calendar:", error);
       res.status(500).json({ error: "Failed to remove calendar" });
+    }
+  });
+
+  // Friends API endpoints
+  app.get("/api/friends", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const friends = await storage.getFriends(userId);
+      res.json(friends);
+    } catch (error: any) {
+      console.error("Error fetching friends:", error);
+      res.status(500).json({ error: "Failed to fetch friends" });
+    }
+  });
+
+  app.get("/api/friends/requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const requests = await storage.getPendingRequests(userId);
+      res.json(requests);
+    } catch (error: any) {
+      console.error("Error fetching friend requests:", error);
+      res.status(500).json({ error: "Failed to fetch friend requests" });
+    }
+  });
+
+  app.post("/api/friends/request", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { username } = req.body;
+      
+      if (!username || typeof username !== "string") {
+        return res.status(400).json({ error: "Username is required" });
+      }
+      
+      const friendship = await storage.sendFriendRequest(userId, username.trim());
+      res.json({ success: true, friendship });
+    } catch (error: any) {
+      console.error("Error sending friend request:", error);
+      res.status(400).json({ error: error.message || "Failed to send friend request" });
+    }
+  });
+
+  app.post("/api/friends/accept/:requestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { requestId } = req.params;
+      
+      await storage.acceptFriendRequest(userId, requestId);
+      res.json({ success: true, message: "Friend request accepted" });
+    } catch (error: any) {
+      console.error("Error accepting friend request:", error);
+      res.status(400).json({ error: error.message || "Failed to accept friend request" });
+    }
+  });
+
+  app.post("/api/friends/decline/:requestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { requestId } = req.params;
+      
+      await storage.declineFriendRequest(userId, requestId);
+      res.json({ success: true, message: "Friend request declined" });
+    } catch (error: any) {
+      console.error("Error declining friend request:", error);
+      res.status(400).json({ error: error.message || "Failed to decline friend request" });
+    }
+  });
+
+  app.delete("/api/friends/:friendId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { friendId } = req.params;
+      
+      await storage.removeFriend(userId, friendId);
+      res.json({ success: true, message: "Friend removed" });
+    } catch (error: any) {
+      console.error("Error removing friend:", error);
+      res.status(400).json({ error: error.message || "Failed to remove friend" });
+    }
+  });
+
+  app.get("/api/friends/leaderboard", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const leaderboard = await storage.getLeaderboard(userId);
+      res.json(leaderboard);
+    } catch (error: any) {
+      console.error("Error fetching leaderboard:", error);
+      res.status(500).json({ error: "Failed to fetch leaderboard" });
     }
   });
 

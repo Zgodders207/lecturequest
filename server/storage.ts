@@ -1,4 +1,4 @@
-import { eq, lte, desc, and, sql } from "drizzle-orm";
+import { eq, lte, desc, and, sql, or, inArray, gte } from "drizzle-orm";
 import { db } from "./db";
 import {
   usersTable,
@@ -9,6 +9,10 @@ import {
   cachedQuestionsTable,
   calendarSettingsTable,
   calendarEventsTable,
+  lectureUploadsTable,
+  dismissedLecturesTable,
+  friendshipsTable,
+  weeklyXpLogsTable,
   calculateNextReview,
   calculateTopicPriority,
   ALL_ACHIEVEMENTS,
@@ -28,6 +32,8 @@ import type {
   ReviewEvent,
   DailyQuizPlan,
   Question,
+  DismissedLecture,
+  Friendship,
   DbUser,
   DbLecture,
   DbTopicReviewStats,
@@ -35,51 +41,84 @@ import type {
   DbCalendarEvent,
   DbDailyQuizPlan,
   DbCachedQuestion,
+  DbLectureUpload,
+  DbDismissedLecture,
+  DbFriendship,
+  DbWeeklyXpLog,
   User,
   UpsertUser,
 } from "@shared/schema";
+
+export interface LectureUpload {
+  id: string;
+  batchId: string;
+  userId: string;
+  filename: string | null;
+  status: "pending" | "processing" | "completed" | "error";
+  error: string | null;
+  lectureId: string | null;
+  createdAt: string;
+}
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   
-  getUserProfile(): Promise<UserProfile>;
-  updateUserProfile(profile: Partial<UserProfile>): Promise<UserProfile>;
-  resetUserProfile(): Promise<UserProfile>;
-  loadDemoData(): Promise<{ profile: UserProfile; lectures: Lecture[]; calendarSettings: CalendarSettings; calendarEvents: CalendarEvent[] }>;
+  getUserProfile(userId: string): Promise<UserProfile>;
+  updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<UserProfile>;
+  resetUserProfile(userId: string): Promise<UserProfile>;
+  loadDemoData(userId: string): Promise<{ profile: UserProfile; lectures: Lecture[]; calendarSettings: CalendarSettings; calendarEvents: CalendarEvent[] }>;
   
-  getLectures(): Promise<Lecture[]>;
-  getLecture(id: string): Promise<Lecture | undefined>;
-  addLecture(lecture: Omit<Lecture, "id">): Promise<Lecture>;
-  updateLecture(id: string, updates: Partial<Lecture>): Promise<Lecture | undefined>;
-  deleteLecture(id: string): Promise<boolean>;
-  getLectureContent(id: string): Promise<string | undefined>;
+  getLectures(userId: string): Promise<Lecture[]>;
+  getLecture(userId: string, id: string): Promise<Lecture | undefined>;
+  addLecture(userId: string, lecture: Omit<Lecture, "id">): Promise<Lecture>;
+  updateLecture(userId: string, id: string, updates: Partial<Lecture>): Promise<Lecture | undefined>;
+  deleteLecture(userId: string, id: string): Promise<boolean>;
+  getLectureContent(userId: string, id: string): Promise<string | undefined>;
   
-  getWeakTopics(): Promise<string[]>;
+  getWeakTopics(userId: string): Promise<string[]>;
   
-  getCalendarSettings(): Promise<CalendarSettings | null>;
-  setCalendarSettings(settings: CalendarSettings): Promise<CalendarSettings>;
-  clearCalendarSettings(): Promise<void>;
+  getCalendarSettings(userId: string): Promise<CalendarSettings | null>;
+  setCalendarSettings(userId: string, settings: CalendarSettings): Promise<CalendarSettings>;
+  clearCalendarSettings(userId: string): Promise<void>;
   
-  getCalendarEvents(): Promise<CalendarEvent[]>;
-  setCalendarEvents(events: CalendarEvent[]): Promise<CalendarEvent[]>;
-  updateCalendarEventMatch(eventId: string, lectureId: string | null): Promise<CalendarEvent | undefined>;
+  getCalendarEvents(userId: string): Promise<CalendarEvent[]>;
+  setCalendarEvents(userId: string, events: CalendarEvent[]): Promise<CalendarEvent[]>;
+  updateCalendarEventMatch(userId: string, eventId: string, lectureId: string | null): Promise<CalendarEvent | undefined>;
   
-  getTopicReviewStats(): Promise<TopicReviewStats[]>;
-  getTopicReviewStat(topic: string): Promise<TopicReviewStats | undefined>;
-  updateTopicReviewStats(topic: string, lectureId: string, lectureTitle: string, score: number): Promise<TopicReviewStats>;
-  initializeTopicsFromLecture(lectureId: string, topics: string[]): Promise<void>;
+  getTopicReviewStats(userId: string): Promise<TopicReviewStats[]>;
+  getTopicReviewStat(userId: string, topic: string): Promise<TopicReviewStats | undefined>;
+  updateTopicReviewStats(userId: string, topic: string, lectureId: string, lectureTitle: string, score: number): Promise<TopicReviewStats>;
+  initializeTopicsFromLecture(userId: string, lectureId: string, topics: string[]): Promise<void>;
   
-  getDueTopics(limit?: number): Promise<TopicReviewStats[]>;
-  getCurrentDailyQuizPlan(): Promise<DailyQuizPlan | null>;
-  setCurrentDailyQuizPlan(plan: DailyQuizPlan): Promise<DailyQuizPlan>;
-  completeDailyQuizPlan(score: number): Promise<DailyQuizPlan | null>;
+  getDueTopics(userId: string, limit?: number): Promise<TopicReviewStats[]>;
+  getCurrentDailyQuizPlan(userId: string): Promise<DailyQuizPlan | null>;
+  setCurrentDailyQuizPlan(userId: string, plan: DailyQuizPlan): Promise<DailyQuizPlan>;
+  completeDailyQuizPlan(userId: string, score: number): Promise<DailyQuizPlan | null>;
   
-  addReviewEvent(event: Omit<ReviewEvent, "id">): Promise<ReviewEvent>;
-  getReviewHistory(limit?: number): Promise<ReviewEvent[]>;
+  addReviewEvent(userId: string, event: Omit<ReviewEvent, "id">): Promise<ReviewEvent>;
+  getReviewHistory(userId: string, limit?: number): Promise<ReviewEvent[]>;
   
-  getCachedQuestions(topic: string, lectureId: string): Promise<Question[]>;
-  cacheQuestions(topic: string, lectureId: string, questions: Question[]): Promise<void>;
+  getCachedQuestions(userId: string, topic: string, lectureId: string): Promise<Question[]>;
+  cacheQuestions(userId: string, topic: string, lectureId: string, questions: Question[]): Promise<void>;
+  
+  createBatchUpload(userId: string, batchId: string, items: { filename: string | null }[]): Promise<LectureUpload[]>;
+  updateBatchUploadStatus(userId: string, uploadId: string, status: "pending" | "processing" | "completed" | "error", lectureId?: string, error?: string): Promise<LectureUpload | undefined>;
+  getBatchUploads(userId: string, batchId: string): Promise<LectureUpload[]>;
+  
+  getDismissedLectures(userId: string): Promise<DismissedLecture[]>;
+  dismissLecture(userId: string, calendarEventId: string, reason?: string): Promise<void>;
+  undismissLecture(userId: string, calendarEventId: string): Promise<void>;
+  
+  sendFriendRequest(userId: string, friendUsername: string): Promise<Friendship>;
+  acceptFriendRequest(userId: string, requestId: string): Promise<void>;
+  declineFriendRequest(userId: string, requestId: string): Promise<void>;
+  removeFriend(userId: string, friendId: string): Promise<void>;
+  getFriends(userId: string): Promise<{friend: User, status: string}[]>;
+  getPendingRequests(userId: string): Promise<{from: User, request: Friendship}[]>;
+  getLeaderboard(userId: string): Promise<{user: User, weeklyXp: number, rank: number}[]>;
+  logXpEarned(userId: string, amount: number): Promise<void>;
+  getUserByUsername(username: string): Promise<User | undefined>;
 }
 
 function dbUserToProfile(user: DbUser): UserProfile {
@@ -167,6 +206,19 @@ function dbDailyQuizPlanToPlan(dbPlan: DbDailyQuizPlan): DailyQuizPlan {
   };
 }
 
+function dbLectureUploadToUpload(dbUpload: DbLectureUpload): LectureUpload {
+  return {
+    id: String(dbUpload.id),
+    batchId: dbUpload.batchId,
+    userId: dbUpload.userId,
+    filename: dbUpload.filename,
+    status: (dbUpload.status as LectureUpload["status"]) || "pending",
+    error: dbUpload.error,
+    lectureId: dbUpload.lectureId ? String(dbUpload.lectureId) : null,
+    createdAt: dbUpload.createdAt?.toISOString() || new Date().toISOString(),
+  };
+}
+
 export class DatabaseStorage implements IStorage {
   
   async getUser(id: string): Promise<User | undefined> {
@@ -189,10 +241,11 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserProfile(): Promise<UserProfile> {
-    const users = await db.select().from(usersTable).limit(1);
-    if (users.length === 0) {
+  async getUserProfile(userId: string): Promise<UserProfile> {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) {
       const [newUser] = await db.insert(usersTable).values({
+        id: userId,
         achievements: ALL_ACHIEVEMENTS.map(a => ({ ...a })),
         powerUps: { secondChance: 0, hints: 0, doubleXP: false },
         masteredTopics: [],
@@ -200,13 +253,13 @@ export class DatabaseStorage implements IStorage {
       }).returning();
       return dbUserToProfile(newUser);
     }
-    return dbUserToProfile(users[0]);
+    return dbUserToProfile(user);
   }
 
-  async updateUserProfile(updates: Partial<UserProfile>): Promise<UserProfile> {
-    const users = await db.select().from(usersTable).limit(1);
-    if (users.length === 0) {
-      await this.getUserProfile();
+  async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) {
+      await this.getUserProfile(userId);
     }
     
     const dbUpdates: Partial<DbUser> = {};
@@ -225,23 +278,41 @@ export class DatabaseStorage implements IStorage {
     
     const [updated] = await db.update(usersTable)
       .set(dbUpdates)
+      .where(eq(usersTable.id, userId))
       .returning();
     
     return dbUserToProfile(updated);
   }
 
-  async resetUserProfile(): Promise<UserProfile> {
-    await db.delete(usersTable);
-    await db.delete(lecturesTable);
-    await db.delete(topicReviewStatsTable);
-    await db.delete(reviewEventsTable);
-    await db.delete(dailyQuizPlansTable);
-    await db.delete(cachedQuestionsTable);
-    return this.getUserProfile();
+  async resetUserProfile(userId: string): Promise<UserProfile> {
+    await db.delete(lecturesTable).where(eq(lecturesTable.userId, userId));
+    await db.delete(topicReviewStatsTable).where(eq(topicReviewStatsTable.userId, userId));
+    await db.delete(reviewEventsTable).where(eq(reviewEventsTable.userId, userId));
+    await db.delete(dailyQuizPlansTable).where(eq(dailyQuizPlansTable.userId, userId));
+    await db.delete(cachedQuestionsTable).where(eq(cachedQuestionsTable.userId, userId));
+    await db.delete(calendarSettingsTable).where(eq(calendarSettingsTable.userId, userId));
+    await db.delete(calendarEventsTable).where(eq(calendarEventsTable.userId, userId));
+    
+    await db.update(usersTable).set({
+      level: 1,
+      totalXP: 0,
+      xpToNextLevel: 400,
+      currentStreak: 0,
+      longestStreak: 0,
+      totalLectures: 0,
+      averageConfidence: 0,
+      achievements: ALL_ACHIEVEMENTS.map(a => ({ ...a })),
+      masteredTopics: [],
+      needsPractice: [],
+      powerUps: { secondChance: 0, hints: 0, doubleXP: false },
+      lastActivityDate: null,
+    }).where(eq(usersTable.id, userId));
+    
+    return this.getUserProfile(userId);
   }
 
-  async loadDemoData(): Promise<{ profile: UserProfile; lectures: Lecture[]; calendarSettings: CalendarSettings; calendarEvents: CalendarEvent[] }> {
-    await this.resetUserProfile();
+  async loadDemoData(userId: string): Promise<{ profile: UserProfile; lectures: Lecture[]; calendarSettings: CalendarSettings; calendarEvents: CalendarEvent[] }> {
+    await this.resetUserProfile(userId);
     
     const [user] = await db.update(usersTable).set({
       level: DEMO_USER_PROFILE.level,
@@ -256,11 +327,12 @@ export class DatabaseStorage implements IStorage {
       needsPractice: DEMO_USER_PROFILE.needsPractice,
       powerUps: DEMO_USER_PROFILE.powerUps,
       lastActivityDate: DEMO_USER_PROFILE.lastActivityDate,
-    }).returning();
+    }).where(eq(usersTable.id, userId)).returning();
     
     const insertedLectures: Lecture[] = [];
     for (const lecture of DEMO_LECTURES) {
       const [dbLecture] = await db.insert(lecturesTable).values({
+        userId,
         title: lecture.title,
         date: lecture.date,
         content: lecture.content,
@@ -277,17 +349,17 @@ export class DatabaseStorage implements IStorage {
       insertedLectures.push(dbLectureToLecture(dbLecture));
     }
     
-    await db.delete(calendarSettingsTable);
     const [calSettings] = await db.insert(calendarSettingsTable).values({
+      userId,
       url: DEMO_CALENDAR_SETTINGS.url,
       lastSync: DEMO_CALENDAR_SETTINGS.lastSync,
       lastSyncStatus: DEMO_CALENDAR_SETTINGS.lastSyncStatus,
     }).returning();
     
-    await db.delete(calendarEventsTable);
     const insertedEvents: CalendarEvent[] = [];
     for (const event of DEMO_CALENDAR_EVENTS) {
       const [dbEvent] = await db.insert(calendarEventsTable).values({
+        userId,
         uid: event.uid,
         title: event.title,
         eventType: event.eventType,
@@ -310,6 +382,7 @@ export class DatabaseStorage implements IStorage {
     
     for (const t of demoTopics) {
       await db.insert(topicReviewStatsTable).values({
+        userId,
         topic: t.topic,
         lectureId: t.lectureId,
         lectureTitle: t.lectureTitle,
@@ -331,18 +404,22 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getLectures(): Promise<Lecture[]> {
-    const dbLectures = await db.select().from(lecturesTable).orderBy(desc(lecturesTable.createdAt));
+  async getLectures(userId: string): Promise<Lecture[]> {
+    const dbLectures = await db.select().from(lecturesTable)
+      .where(eq(lecturesTable.userId, userId))
+      .orderBy(desc(lecturesTable.createdAt));
     return dbLectures.map(dbLectureToLecture);
   }
 
-  async getLecture(id: string): Promise<Lecture | undefined> {
-    const [dbLecture] = await db.select().from(lecturesTable).where(eq(lecturesTable.id, parseInt(id)));
+  async getLecture(userId: string, id: string): Promise<Lecture | undefined> {
+    const [dbLecture] = await db.select().from(lecturesTable)
+      .where(and(eq(lecturesTable.id, parseInt(id)), eq(lecturesTable.userId, userId)));
     return dbLecture ? dbLectureToLecture(dbLecture) : undefined;
   }
 
-  async addLecture(lectureData: Omit<Lecture, "id">): Promise<Lecture> {
+  async addLecture(userId: string, lectureData: Omit<Lecture, "id">): Promise<Lecture> {
     const [dbLecture] = await db.insert(lecturesTable).values({
+      userId,
       title: lectureData.title,
       date: lectureData.date,
       content: lectureData.content,
@@ -357,13 +434,13 @@ export class DatabaseStorage implements IStorage {
       questionsAnswered: lectureData.questionsAnswered,
     }).returning();
     
-    const lectures = await db.select().from(lecturesTable);
-    await this.updateUserProfile({ totalLectures: lectures.length });
+    const lectures = await db.select().from(lecturesTable).where(eq(lecturesTable.userId, userId));
+    await this.updateUserProfile(userId, { totalLectures: lectures.length });
     
     return dbLectureToLecture(dbLecture);
   }
 
-  async updateLecture(id: string, updates: Partial<Lecture>): Promise<Lecture | undefined> {
+  async updateLecture(userId: string, id: string, updates: Partial<Lecture>): Promise<Lecture | undefined> {
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.date !== undefined) dbUpdates.date = updates.date;
@@ -380,42 +457,45 @@ export class DatabaseStorage implements IStorage {
     
     const [updated] = await db.update(lecturesTable)
       .set(dbUpdates)
-      .where(eq(lecturesTable.id, parseInt(id)))
+      .where(and(eq(lecturesTable.id, parseInt(id)), eq(lecturesTable.userId, userId)))
       .returning();
     
     return updated ? dbLectureToLecture(updated) : undefined;
   }
 
-  async deleteLecture(id: string): Promise<boolean> {
-    const result = await db.delete(lecturesTable).where(eq(lecturesTable.id, parseInt(id)));
-    const lectures = await db.select().from(lecturesTable);
-    await this.updateUserProfile({ totalLectures: lectures.length });
+  async deleteLecture(userId: string, id: string): Promise<boolean> {
+    await db.delete(lecturesTable).where(and(eq(lecturesTable.id, parseInt(id)), eq(lecturesTable.userId, userId)));
+    const lectures = await db.select().from(lecturesTable).where(eq(lecturesTable.userId, userId));
+    await this.updateUserProfile(userId, { totalLectures: lectures.length });
     return true;
   }
 
-  async getLectureContent(id: string): Promise<string | undefined> {
+  async getLectureContent(userId: string, id: string): Promise<string | undefined> {
     const [lecture] = await db.select({ content: lecturesTable.content })
       .from(lecturesTable)
-      .where(eq(lecturesTable.id, parseInt(id)));
+      .where(and(eq(lecturesTable.id, parseInt(id)), eq(lecturesTable.userId, userId)));
     return lecture?.content;
   }
 
-  async getWeakTopics(): Promise<string[]> {
+  async getWeakTopics(userId: string): Promise<string[]> {
     const stats = await db.select().from(topicReviewStatsTable)
-      .where(lte(topicReviewStatsTable.lastScore, 70))
+      .where(and(eq(topicReviewStatsTable.userId, userId), lte(topicReviewStatsTable.lastScore, 70)))
       .orderBy(topicReviewStatsTable.lastScore)
       .limit(10);
     return stats.map(s => s.topic);
   }
 
-  async getCalendarSettings(): Promise<CalendarSettings | null> {
-    const [settings] = await db.select().from(calendarSettingsTable).limit(1);
+  async getCalendarSettings(userId: string): Promise<CalendarSettings | null> {
+    const [settings] = await db.select().from(calendarSettingsTable)
+      .where(eq(calendarSettingsTable.userId, userId))
+      .limit(1);
     return settings ? dbCalendarSettingsToSettings(settings) : null;
   }
 
-  async setCalendarSettings(settings: CalendarSettings): Promise<CalendarSettings> {
-    await db.delete(calendarSettingsTable);
+  async setCalendarSettings(userId: string, settings: CalendarSettings): Promise<CalendarSettings> {
+    await db.delete(calendarSettingsTable).where(eq(calendarSettingsTable.userId, userId));
     const [inserted] = await db.insert(calendarSettingsTable).values({
+      userId,
       url: settings.url,
       lastSync: settings.lastSync,
       lastSyncStatus: settings.lastSyncStatus,
@@ -424,21 +504,23 @@ export class DatabaseStorage implements IStorage {
     return dbCalendarSettingsToSettings(inserted);
   }
 
-  async clearCalendarSettings(): Promise<void> {
-    await db.delete(calendarSettingsTable);
-    await db.delete(calendarEventsTable);
+  async clearCalendarSettings(userId: string): Promise<void> {
+    await db.delete(calendarSettingsTable).where(eq(calendarSettingsTable.userId, userId));
+    await db.delete(calendarEventsTable).where(eq(calendarEventsTable.userId, userId));
   }
 
-  async getCalendarEvents(): Promise<CalendarEvent[]> {
-    const events = await db.select().from(calendarEventsTable);
+  async getCalendarEvents(userId: string): Promise<CalendarEvent[]> {
+    const events = await db.select().from(calendarEventsTable)
+      .where(eq(calendarEventsTable.userId, userId));
     return events.map(dbCalendarEventToEvent);
   }
 
-  async setCalendarEvents(events: CalendarEvent[]): Promise<CalendarEvent[]> {
-    await db.delete(calendarEventsTable);
+  async setCalendarEvents(userId: string, events: CalendarEvent[]): Promise<CalendarEvent[]> {
+    await db.delete(calendarEventsTable).where(eq(calendarEventsTable.userId, userId));
     const insertedEvents: CalendarEvent[] = [];
     for (const event of events) {
       const [inserted] = await db.insert(calendarEventsTable).values({
+        userId,
         uid: event.uid,
         title: event.title,
         eventType: event.eventType,
@@ -453,27 +535,28 @@ export class DatabaseStorage implements IStorage {
     return insertedEvents;
   }
 
-  async updateCalendarEventMatch(eventId: string, lectureId: string | null): Promise<CalendarEvent | undefined> {
+  async updateCalendarEventMatch(userId: string, eventId: string, lectureId: string | null): Promise<CalendarEvent | undefined> {
     const [updated] = await db.update(calendarEventsTable)
       .set({ matchedLectureId: lectureId ? parseInt(lectureId) : null })
-      .where(eq(calendarEventsTable.id, parseInt(eventId)))
+      .where(and(eq(calendarEventsTable.id, parseInt(eventId)), eq(calendarEventsTable.userId, userId)))
       .returning();
     return updated ? dbCalendarEventToEvent(updated) : undefined;
   }
 
-  async getTopicReviewStats(): Promise<TopicReviewStats[]> {
-    const stats = await db.select().from(topicReviewStatsTable);
+  async getTopicReviewStats(userId: string): Promise<TopicReviewStats[]> {
+    const stats = await db.select().from(topicReviewStatsTable)
+      .where(eq(topicReviewStatsTable.userId, userId));
     return stats.map(dbTopicStatsToTopicStats);
   }
 
-  async getTopicReviewStat(topic: string): Promise<TopicReviewStats | undefined> {
+  async getTopicReviewStat(userId: string, topic: string): Promise<TopicReviewStats | undefined> {
     const [stat] = await db.select().from(topicReviewStatsTable)
-      .where(eq(topicReviewStatsTable.topic, topic));
+      .where(and(eq(topicReviewStatsTable.topic, topic), eq(topicReviewStatsTable.userId, userId)));
     return stat ? dbTopicStatsToTopicStats(stat) : undefined;
   }
 
-  async updateTopicReviewStats(topic: string, lectureId: string, lectureTitle: string, score: number): Promise<TopicReviewStats> {
-    const existing = await this.getTopicReviewStat(topic);
+  async updateTopicReviewStats(userId: string, topic: string, lectureId: string, lectureTitle: string, score: number): Promise<TopicReviewStats> {
+    const existing = await this.getTopicReviewStat(userId, topic);
     const today = new Date().toISOString().split('T')[0];
     
     if (existing) {
@@ -497,7 +580,7 @@ export class DatabaseStorage implements IStorage {
           nextDue,
           streak: newStreak,
         })
-        .where(eq(topicReviewStatsTable.topic, topic))
+        .where(and(eq(topicReviewStatsTable.topic, topic), eq(topicReviewStatsTable.userId, userId)))
         .returning();
       
       return dbTopicStatsToTopicStats(updated);
@@ -505,6 +588,7 @@ export class DatabaseStorage implements IStorage {
       const { easeFactor, interval, nextDue } = calculateNextReview(2.5, 1, score, 0);
       
       const [inserted] = await db.insert(topicReviewStatsTable).values({
+        userId,
         topic,
         lectureId: parseInt(lectureId),
         lectureTitle,
@@ -521,16 +605,17 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async initializeTopicsFromLecture(lectureId: string, topics: string[]): Promise<void> {
-    const lecture = await this.getLecture(lectureId);
+  async initializeTopicsFromLecture(userId: string, lectureId: string, topics: string[]): Promise<void> {
+    const lecture = await this.getLecture(userId, lectureId);
     if (!lecture) return;
     
     const today = new Date().toISOString().split('T')[0];
     
     for (const topic of topics) {
-      const existing = await this.getTopicReviewStat(topic);
+      const existing = await this.getTopicReviewStat(userId, topic);
       if (!existing) {
         await db.insert(topicReviewStatsTable).values({
+          userId,
           topic,
           lectureId: parseInt(lectureId),
           lectureTitle: lecture.title,
@@ -546,8 +631,8 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getDueTopics(limit: number = 10): Promise<TopicReviewStats[]> {
-    const allStats = await this.getTopicReviewStats();
+  async getDueTopics(userId: string, limit: number = 10): Promise<TopicReviewStats[]> {
+    const allStats = await this.getTopicReviewStats(userId);
     const today = new Date();
     
     const scoredTopics = allStats
@@ -562,18 +647,19 @@ export class DatabaseStorage implements IStorage {
     return scoredTopics.slice(0, limit).map(t => t.stats);
   }
 
-  async getCurrentDailyQuizPlan(): Promise<DailyQuizPlan | null> {
+  async getCurrentDailyQuizPlan(userId: string): Promise<DailyQuizPlan | null> {
     const [plan] = await db.select().from(dailyQuizPlansTable)
-      .where(eq(dailyQuizPlansTable.completed, false))
+      .where(and(eq(dailyQuizPlansTable.completed, false), eq(dailyQuizPlansTable.userId, userId)))
       .orderBy(desc(dailyQuizPlansTable.createdAt))
       .limit(1);
     return plan ? dbDailyQuizPlanToPlan(plan) : null;
   }
 
-  async setCurrentDailyQuizPlan(plan: DailyQuizPlan): Promise<DailyQuizPlan> {
-    await db.delete(dailyQuizPlansTable).where(eq(dailyQuizPlansTable.completed, false));
+  async setCurrentDailyQuizPlan(userId: string, plan: DailyQuizPlan): Promise<DailyQuizPlan> {
+    await db.delete(dailyQuizPlansTable).where(and(eq(dailyQuizPlansTable.completed, false), eq(dailyQuizPlansTable.userId, userId)));
     
     const [inserted] = await db.insert(dailyQuizPlansTable).values({
+      userId,
       generatedAt: plan.generatedAt,
       topics: plan.topics,
       lectureExcerpts: plan.lectureExcerpts,
@@ -583,8 +669,8 @@ export class DatabaseStorage implements IStorage {
     return dbDailyQuizPlanToPlan(inserted);
   }
 
-  async completeDailyQuizPlan(score: number): Promise<DailyQuizPlan | null> {
-    const currentPlan = await this.getCurrentDailyQuizPlan();
+  async completeDailyQuizPlan(userId: string, score: number): Promise<DailyQuizPlan | null> {
+    const currentPlan = await this.getCurrentDailyQuizPlan(userId);
     if (!currentPlan) return null;
     
     const [updated] = await db.update(dailyQuizPlansTable)
@@ -593,14 +679,15 @@ export class DatabaseStorage implements IStorage {
         completedAt: new Date().toISOString(),
         score,
       })
-      .where(eq(dailyQuizPlansTable.id, parseInt(currentPlan.id)))
+      .where(and(eq(dailyQuizPlansTable.id, parseInt(currentPlan.id)), eq(dailyQuizPlansTable.userId, userId)))
       .returning();
     
     return updated ? dbDailyQuizPlanToPlan(updated) : null;
   }
 
-  async addReviewEvent(eventData: Omit<ReviewEvent, "id">): Promise<ReviewEvent> {
+  async addReviewEvent(userId: string, eventData: Omit<ReviewEvent, "id">): Promise<ReviewEvent> {
     const [inserted] = await db.insert(reviewEventsTable).values({
+      userId,
       topicId: eventData.topicId,
       topic: eventData.topic,
       lectureId: parseInt(eventData.lectureId),
@@ -622,8 +709,9 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getReviewHistory(limit: number = 50): Promise<ReviewEvent[]> {
+  async getReviewHistory(userId: string, limit: number = 50): Promise<ReviewEvent[]> {
     const events = await db.select().from(reviewEventsTable)
+      .where(eq(reviewEventsTable.userId, userId))
       .orderBy(desc(reviewEventsTable.createdAt))
       .limit(limit);
     
@@ -639,11 +727,12 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getCachedQuestions(topic: string, lectureId: string): Promise<Question[]> {
+  async getCachedQuestions(userId: string, topic: string, lectureId: string): Promise<Question[]> {
     const questions = await db.select().from(cachedQuestionsTable)
       .where(and(
         eq(cachedQuestionsTable.topic, topic),
-        eq(cachedQuestionsTable.lectureId, parseInt(lectureId))
+        eq(cachedQuestionsTable.lectureId, parseInt(lectureId)),
+        eq(cachedQuestionsTable.userId, userId)
       ))
       .orderBy(cachedQuestionsTable.timesUsed)
       .limit(5);
@@ -657,11 +746,12 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async cacheQuestions(topic: string, lectureId: string, questions: Question[]): Promise<void> {
+  async cacheQuestions(userId: string, topic: string, lectureId: string, questions: Question[]): Promise<void> {
     const today = new Date().toISOString().split('T')[0];
     
     for (const q of questions) {
       await db.insert(cachedQuestionsTable).values({
+        userId,
         topic,
         lectureId: parseInt(lectureId),
         question: q.question,
@@ -669,6 +759,309 @@ export class DatabaseStorage implements IStorage {
         correct: q.correct,
         explanation: q.explanation,
         lastUsed: today,
+      });
+    }
+  }
+
+  async createBatchUpload(userId: string, batchId: string, items: { filename: string | null }[]): Promise<LectureUpload[]> {
+    const uploads: LectureUpload[] = [];
+    for (const item of items) {
+      const [inserted] = await db.insert(lectureUploadsTable).values({
+        userId,
+        batchId,
+        filename: item.filename,
+        status: "pending",
+      }).returning();
+      uploads.push(dbLectureUploadToUpload(inserted));
+    }
+    return uploads;
+  }
+
+  async updateBatchUploadStatus(userId: string, uploadId: string, status: "pending" | "processing" | "completed" | "error", lectureId?: string, error?: string): Promise<LectureUpload | undefined> {
+    const [updated] = await db.update(lectureUploadsTable)
+      .set({
+        status,
+        lectureId: lectureId ? parseInt(lectureId) : null,
+        error: error || null,
+      })
+      .where(and(eq(lectureUploadsTable.id, parseInt(uploadId)), eq(lectureUploadsTable.userId, userId)))
+      .returning();
+    return updated ? dbLectureUploadToUpload(updated) : undefined;
+  }
+
+  async getBatchUploads(userId: string, batchId: string): Promise<LectureUpload[]> {
+    const uploads = await db.select().from(lectureUploadsTable)
+      .where(and(eq(lectureUploadsTable.batchId, batchId), eq(lectureUploadsTable.userId, userId)));
+    return uploads.map(dbLectureUploadToUpload);
+  }
+
+  async getDismissedLectures(userId: string): Promise<DismissedLecture[]> {
+    const dismissed = await db.select().from(dismissedLecturesTable)
+      .where(eq(dismissedLecturesTable.userId, userId));
+    return dismissed.map(d => ({
+      id: String(d.id),
+      userId: d.userId,
+      calendarEventId: d.calendarEventId,
+      dismissedAt: d.dismissedAt?.toISOString() || new Date().toISOString(),
+      reason: d.reason || undefined,
+    }));
+  }
+
+  async dismissLecture(userId: string, calendarEventId: string, reason?: string): Promise<void> {
+    await db.insert(dismissedLecturesTable).values({
+      userId,
+      calendarEventId,
+      reason: reason || null,
+    });
+  }
+
+  async undismissLecture(userId: string, calendarEventId: string): Promise<void> {
+    await db.delete(dismissedLecturesTable)
+      .where(and(
+        eq(dismissedLecturesTable.userId, userId),
+        eq(dismissedLecturesTable.calendarEventId, calendarEventId)
+      ));
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const normalizedUsername = username.toLowerCase().trim();
+    const users = await db.select().from(usersTable);
+    const user = users.find(u => 
+      (u.username && u.username.toLowerCase() === normalizedUsername) ||
+      (u.email && u.email.toLowerCase() === normalizedUsername)
+    );
+    return user;
+  }
+
+  async sendFriendRequest(userId: string, friendUsername: string): Promise<Friendship> {
+    const friendUser = await this.getUserByUsername(friendUsername);
+    if (!friendUser) {
+      throw new Error("User not found");
+    }
+    
+    if (friendUser.id === userId) {
+      throw new Error("Cannot send friend request to yourself");
+    }
+    
+    const existingFriendship = await db.select().from(friendshipsTable)
+      .where(or(
+        and(
+          eq(friendshipsTable.userId, userId),
+          eq(friendshipsTable.friendId, friendUser.id)
+        ),
+        and(
+          eq(friendshipsTable.userId, friendUser.id),
+          eq(friendshipsTable.friendId, userId)
+        )
+      ));
+    
+    if (existingFriendship.length > 0) {
+      const existing = existingFriendship[0];
+      if (existing.status === "accepted") {
+        throw new Error("Already friends with this user");
+      }
+      if (existing.status === "pending") {
+        throw new Error("Friend request already pending");
+      }
+    }
+    
+    const [inserted] = await db.insert(friendshipsTable).values({
+      userId,
+      friendId: friendUser.id,
+      status: "pending",
+    }).returning();
+    
+    return {
+      id: String(inserted.id),
+      userId: inserted.userId,
+      friendId: inserted.friendId,
+      status: inserted.status as "pending" | "accepted" | "declined",
+      createdAt: inserted.createdAt?.toISOString() || new Date().toISOString(),
+      acceptedAt: inserted.acceptedAt?.toISOString(),
+    };
+  }
+
+  async acceptFriendRequest(userId: string, requestId: string): Promise<void> {
+    const [request] = await db.select().from(friendshipsTable)
+      .where(and(
+        eq(friendshipsTable.id, parseInt(requestId)),
+        eq(friendshipsTable.friendId, userId),
+        eq(friendshipsTable.status, "pending")
+      ));
+    
+    if (!request) {
+      throw new Error("Friend request not found");
+    }
+    
+    await db.update(friendshipsTable)
+      .set({
+        status: "accepted",
+        acceptedAt: new Date(),
+      })
+      .where(eq(friendshipsTable.id, parseInt(requestId)));
+  }
+
+  async declineFriendRequest(userId: string, requestId: string): Promise<void> {
+    const [request] = await db.select().from(friendshipsTable)
+      .where(and(
+        eq(friendshipsTable.id, parseInt(requestId)),
+        eq(friendshipsTable.friendId, userId),
+        eq(friendshipsTable.status, "pending")
+      ));
+    
+    if (!request) {
+      throw new Error("Friend request not found");
+    }
+    
+    await db.update(friendshipsTable)
+      .set({
+        status: "declined",
+      })
+      .where(eq(friendshipsTable.id, parseInt(requestId)));
+  }
+
+  async removeFriend(userId: string, friendId: string): Promise<void> {
+    await db.delete(friendshipsTable)
+      .where(or(
+        and(
+          eq(friendshipsTable.userId, userId),
+          eq(friendshipsTable.friendId, friendId),
+          eq(friendshipsTable.status, "accepted")
+        ),
+        and(
+          eq(friendshipsTable.userId, friendId),
+          eq(friendshipsTable.friendId, userId),
+          eq(friendshipsTable.status, "accepted")
+        )
+      ));
+  }
+
+  async getFriends(userId: string): Promise<{friend: User, status: string}[]> {
+    const friendships = await db.select().from(friendshipsTable)
+      .where(or(
+        and(eq(friendshipsTable.userId, userId), eq(friendshipsTable.status, "accepted")),
+        and(eq(friendshipsTable.friendId, userId), eq(friendshipsTable.status, "accepted"))
+      ));
+    
+    const friends: {friend: User, status: string}[] = [];
+    
+    for (const f of friendships) {
+      const friendUserId = f.userId === userId ? f.friendId : f.userId;
+      const [friendUser] = await db.select().from(usersTable)
+        .where(eq(usersTable.id, friendUserId));
+      
+      if (friendUser) {
+        friends.push({
+          friend: friendUser,
+          status: f.status || "accepted",
+        });
+      }
+    }
+    
+    return friends;
+  }
+
+  async getPendingRequests(userId: string): Promise<{from: User, request: Friendship}[]> {
+    const requests = await db.select().from(friendshipsTable)
+      .where(and(
+        eq(friendshipsTable.friendId, userId),
+        eq(friendshipsTable.status, "pending")
+      ));
+    
+    const pendingRequests: {from: User, request: Friendship}[] = [];
+    
+    for (const r of requests) {
+      const [fromUser] = await db.select().from(usersTable)
+        .where(eq(usersTable.id, r.userId));
+      
+      if (fromUser) {
+        pendingRequests.push({
+          from: fromUser,
+          request: {
+            id: String(r.id),
+            userId: r.userId,
+            friendId: r.friendId,
+            status: r.status as "pending" | "accepted" | "declined",
+            createdAt: r.createdAt?.toISOString() || new Date().toISOString(),
+            acceptedAt: r.acceptedAt?.toISOString(),
+          },
+        });
+      }
+    }
+    
+    return pendingRequests;
+  }
+
+  private getWeekStart(): Date {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  }
+
+  async getLeaderboard(userId: string): Promise<{user: User, weeklyXp: number, rank: number}[]> {
+    const weekStart = this.getWeekStart();
+    
+    const friends = await this.getFriends(userId);
+    const friendIds = friends.map(f => f.friend.id);
+    
+    const allUserIds = [userId, ...friendIds];
+    
+    const weeklyXpData = await db.select().from(weeklyXpLogsTable)
+      .where(and(
+        inArray(weeklyXpLogsTable.userId, allUserIds),
+        gte(weeklyXpLogsTable.weekStart, weekStart)
+      ));
+    
+    const xpMap = new Map<string, number>();
+    for (const log of weeklyXpData) {
+      xpMap.set(log.userId, (xpMap.get(log.userId) || 0) + (log.xpEarned || 0));
+    }
+    
+    const allUsers = await db.select().from(usersTable)
+      .where(inArray(usersTable.id, allUserIds));
+    
+    const leaderboard = allUsers.map(user => ({
+      user,
+      weeklyXp: xpMap.get(user.id) || 0,
+      rank: 0,
+    }));
+    
+    leaderboard.sort((a, b) => b.weeklyXp - a.weeklyXp);
+    
+    leaderboard.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
+    
+    return leaderboard;
+  }
+
+  async logXpEarned(userId: string, amount: number): Promise<void> {
+    if (amount <= 0) return;
+    
+    const weekStart = this.getWeekStart();
+    
+    const [existing] = await db.select().from(weeklyXpLogsTable)
+      .where(and(
+        eq(weeklyXpLogsTable.userId, userId),
+        eq(weeklyXpLogsTable.weekStart, weekStart)
+      ));
+    
+    if (existing) {
+      await db.update(weeklyXpLogsTable)
+        .set({
+          xpEarned: (existing.xpEarned || 0) + amount,
+          updatedAt: new Date(),
+        })
+        .where(eq(weeklyXpLogsTable.id, existing.id));
+    } else {
+      await db.insert(weeklyXpLogsTable).values({
+        userId,
+        weekStart,
+        xpEarned: amount,
       });
     }
   }

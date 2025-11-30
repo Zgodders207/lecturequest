@@ -5,7 +5,9 @@ import {
   Play, Upload, ChevronRight, Trash2, Bell,
   Target, Award, TrendingUp, Trophy, Clock,
   Calendar, CalendarDays, RefreshCw, X, Loader2, FileCheck, Sparkles,
-  Brain, Briefcase, Download, GraduationCap, BarChart3, Lightbulb, ArrowUpRight, CheckCircle2
+  Brain, Briefcase, Download, GraduationCap, BarChart3, Lightbulb, ArrowUpRight, CheckCircle2,
+  EyeOff, MapPin, ChevronDown,
+  Users, UserPlus, UserMinus, Crown, Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +18,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { UserProfile, Lecture, CalendarSettings, CalendarEvent } from "@shared/schema";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { UserProfile, Lecture, CalendarSettings, CalendarEvent, User, Friendship } from "@shared/schema";
 import { xpForNextLevel, formatDate, getMotivationalQuote, getLevelTitle } from "@/lib/game-utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +31,9 @@ interface CalendarData {
   upcomingLectures: CalendarEvent[];
   upcomingExams: CalendarEvent[];
   missingLectures: CalendarEvent[];
+  totalMissed: number;
+  activeMissed: number;
+  dismissedCount: number;
   totalEvents: number;
   lectureCount: number;
   examCount: number;
@@ -43,12 +50,19 @@ interface DailyQuizStatus {
     daysSinceReview: number;
     streak: number;
     isOverdue: boolean;
+    reason: "overdue" | "weak" | "new" | "due";
+    reviewCount: number;
   }[];
   currentPlan: {
     id: string;
     topicsCount: number;
     generatedAt: string;
     completed: boolean;
+    topics?: {
+      topic: string;
+      lectureTitle: string;
+      reason: string;
+    }[];
   } | null;
   weeklyStreak: number;
 }
@@ -66,6 +80,22 @@ interface SkillsData {
   proficientCount: number;
   intermediateCount: number;
   developingCount: number;
+}
+
+interface FriendData {
+  friend: User;
+  status: string;
+}
+
+interface FriendRequestData {
+  from: User;
+  request: Friendship;
+}
+
+interface LeaderboardEntry {
+  user: User;
+  weeklyXp: number;
+  rank: number;
 }
 
 interface DashboardProps {
@@ -91,9 +121,25 @@ export function Dashboard({
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [calendarUrl, setCalendarUrl] = useState("");
   const [demoDialogOpen, setDemoDialogOpen] = useState(false);
+  const [missedLecturesOpen, setMissedLecturesOpen] = useState(false);
+  const [topicPreviewOpen, setTopicPreviewOpen] = useState(false);
+  const [addFriendDialogOpen, setAddFriendDialogOpen] = useState(false);
+  const [friendUsername, setFriendUsername] = useState("");
   
   const { data: calendarData } = useQuery<CalendarData>({
     queryKey: ["/api/calendar"],
+  });
+  
+  const { data: friends } = useQuery<FriendData[]>({
+    queryKey: ["/api/friends"],
+  });
+  
+  const { data: friendRequests } = useQuery<FriendRequestData[]>({
+    queryKey: ["/api/friends/requests"],
+  });
+  
+  const { data: leaderboard } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["/api/friends/leaderboard"],
   });
   
   const { data: dailyQuizStatus } = useQuery<DailyQuizStatus>({
@@ -165,6 +211,83 @@ export function Dashboard({
     },
   });
 
+  const dismissLectureMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      const response = await apiRequest("POST", `/api/calendar/dismiss/${eventId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
+      toast({ title: "Lecture dismissed", description: "It won't appear in missed lectures anymore" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to dismiss lecture", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const sendFriendRequestMutation = useMutation({
+    mutationFn: async (username: string) => {
+      const response = await apiRequest("POST", "/api/friends/request", { username });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/friends/requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/friends/leaderboard"] });
+      toast({ title: "Friend request sent" });
+      setAddFriendDialogOpen(false);
+      setFriendUsername("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to send friend request", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const acceptFriendRequestMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const response = await apiRequest("POST", `/api/friends/accept/${requestId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/friends/requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/friends/leaderboard"] });
+      toast({ title: "Friend request accepted" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to accept friend request", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const declineFriendRequestMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const response = await apiRequest("POST", `/api/friends/decline/${requestId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/friends/requests"] });
+      toast({ title: "Friend request declined" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to decline friend request", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeFriendMutation = useMutation({
+    mutationFn: async (friendId: string) => {
+      const response = await apiRequest("DELETE", `/api/friends/${friendId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/friends/leaderboard"] });
+      toast({ title: "Friend removed" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to remove friend", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Computed values
   const currentLevelXP = Math.pow(userProfile.level, 2) * 100;
   const nextLevelXP = xpForNextLevel(userProfile.level);
@@ -186,6 +309,32 @@ export function Dashboard({
   const upcomingExams = calendarData?.upcomingExams || [];
   const missingLectures = calendarData?.missingLectures || [];
   const hasPriorityAction = dailyQuizStatus?.hasDueTopics || hasReviewsDue;
+  const pendingRequestsCount = friendRequests?.length || 0;
+  
+  const getUserInitials = (user: User) => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.firstName) {
+      return user.firstName.slice(0, 2).toUpperCase();
+    }
+    if (user.email) {
+      return user.email.slice(0, 2).toUpperCase();
+    }
+    return "?";
+  };
+  
+  const getDisplayName = (user: User) => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    if (user.firstName) {
+      return user.firstName;
+    }
+    return user.email || "Unknown";
+  };
+  
+  const currentUserRank = leaderboard?.find(e => e.rank === leaderboard.findIndex(l => l.user.id === userProfile) + 1)?.rank;
   
   const formatEventDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -350,6 +499,7 @@ export function Dashboard({
             <TabsTrigger value="progress" className="gap-2" data-testid="tab-progress">
               <BarChart3 className="h-4 w-4" />
               Progress
+              {pendingRequestsCount > 0 && <Badge variant="secondary" className="text-xs h-5 bg-primary/20 text-primary">{pendingRequestsCount}</Badge>}
             </TabsTrigger>
           </TabsList>
 
@@ -388,24 +538,72 @@ export function Dashboard({
               </div>
             )}
 
-            {/* Daily Quiz */}
+            {/* Daily Quiz with Topic Preview */}
             {dailyQuizStatus?.hasDueTopics && onStartDailyQuiz && (
-              <div className="p-5 rounded-xl bg-primary/5 border border-primary/20">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
-                    <Target className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h2 className="font-serif text-lg font-medium">Daily Quiz</h2>
-                      <Badge className="bg-primary/20 text-primary border-0 text-xs">{dailyQuizStatus.dueTopicsCount} topics</Badge>
+              <div className="rounded-xl bg-primary/5 border border-primary/20 overflow-hidden">
+                <div className="p-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
+                      <Target className="h-5 w-5 text-primary" />
                     </div>
-                    <p className="text-sm text-muted-foreground">Practice to strengthen memory</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-serif text-lg font-medium">Daily Quiz</h2>
+                        <Badge className="bg-primary/20 text-primary border-0 text-xs">{dailyQuizStatus.dueTopicsCount} topics</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Practice to strengthen memory</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setTopicPreviewOpen(!topicPreviewOpen)} className="gap-1.5 text-xs" data-testid="button-preview-topics">
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${topicPreviewOpen ? 'rotate-180' : ''}`} />
+                        Preview
+                      </Button>
+                      <Button onClick={onStartDailyQuiz} className="gap-2" data-testid="button-start-daily-quiz">
+                        <Zap className="h-4 w-4" />Start
+                      </Button>
+                    </div>
                   </div>
-                  <Button onClick={onStartDailyQuiz} className="gap-2" data-testid="button-start-daily-quiz">
-                    <Zap className="h-4 w-4" />Start
-                  </Button>
                 </div>
+                
+                {/* Topic Preview Collapsible */}
+                {topicPreviewOpen && dailyQuizStatus.dueTopics.length > 0 && (
+                  <div className="px-5 pb-5">
+                    <div className="border-t border-primary/10 pt-4">
+                      <p className="text-xs text-muted-foreground mb-3">Topics to review:</p>
+                      <div className="space-y-2">
+                        {dailyQuizStatus.dueTopics.slice(0, 5).map((topic, i) => (
+                          <div key={i} className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-background/50" data-testid={`topic-preview-${i}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{topic.topic}</p>
+                              <p className="text-xs text-muted-foreground truncate">{topic.lectureTitle}</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {topic.lastScore > 0 && (
+                                <span className="text-xs text-muted-foreground tabular-nums">{topic.lastScore}%</span>
+                              )}
+                              <Badge 
+                                variant="secondary" 
+                                className={`text-xs ${
+                                  topic.reason === 'overdue' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                                  topic.reason === 'weak' ? 'bg-gold/10 text-gold border-gold/20' :
+                                  topic.reason === 'new' ? 'bg-primary/10 text-primary border-primary/20' :
+                                  'bg-muted'
+                                }`}
+                              >
+                                {topic.reason}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                        {dailyQuizStatus.dueTopics.length > 5 && (
+                          <p className="text-xs text-muted-foreground text-center pt-1">
+                            +{dailyQuizStatus.dueTopics.length - 5} more topics
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -475,6 +673,73 @@ export function Dashboard({
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Missed Lectures Section */}
+            {missingLectures.length > 0 && (
+              <Collapsible open={missedLecturesOpen || missingLectures.length <= 3} onOpenChange={setMissedLecturesOpen}>
+                <div className="rounded-xl border border-destructive/20 bg-destructive/5 overflow-hidden">
+                  <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover-elevate" data-testid="button-toggle-missed-lectures">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10">
+                        <Clock className="h-4 w-4 text-destructive" />
+                      </div>
+                      <div className="text-left">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">Missed Lectures</span>
+                          <Badge variant="secondary" className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
+                            {missingLectures.length}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Past lectures without uploads</p>
+                      </div>
+                    </div>
+                    {missingLectures.length > 3 && (
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${missedLecturesOpen ? 'rotate-180' : ''}`} />
+                    )}
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <div className="px-4 pb-4 space-y-2">
+                      {missingLectures.map((event) => (
+                        <div key={event.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-background/50" data-testid={`missed-lecture-${event.id}`}>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{event.title}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{formatEventDate(event.startsAt)}</span>
+                              {event.location && (
+                                <>
+                                  <span>·</span>
+                                  <span className="flex items-center gap-1 truncate">
+                                    <MapPin className="h-3 w-3" />
+                                    {event.location}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => dismissLectureMutation.mutate(event.id)}
+                                disabled={dismissLectureMutation.isPending}
+                                className="gap-1.5 text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
+                                data-testid={`button-dismiss-${event.id}`}
+                              >
+                                <EyeOff className="h-3.5 w-3.5" />
+                                Forget
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Dismiss this lecture from missed list</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
             )}
 
             {/* Study Materials */}
@@ -746,6 +1011,136 @@ export function Dashboard({
                 </div>
               </div>
             )}
+
+            {/* Friends & Leaderboard */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-lg flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Friends & Leaderboard
+                </h3>
+                <Button variant="outline" size="sm" onClick={() => setAddFriendDialogOpen(true)} className="gap-1.5" data-testid="button-add-friend">
+                  <UserPlus className="h-3.5 w-3.5" />Add Friend
+                </Button>
+              </div>
+
+              {/* Pending Friend Requests */}
+              {friendRequests && friendRequests.length > 0 && (
+                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Friend Requests</span>
+                    <Badge variant="secondary" className="text-xs">{friendRequests.length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {friendRequests.map((request) => (
+                      <div key={request.request.id} className="flex items-center justify-between p-2 rounded-md bg-background/50" data-testid={`friend-request-${request.request.id}`}>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={request.from.profileImageUrl || undefined} />
+                            <AvatarFallback className="text-xs">{getUserInitials(request.from)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{getDisplayName(request.from)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => acceptFriendRequestMutation.mutate(request.request.id)} disabled={acceptFriendRequestMutation.isPending} className="h-7 w-7" data-testid={`button-accept-request-${request.request.id}`}>
+                            <Check className="h-4 w-4 text-success" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => declineFriendRequestMutation.mutate(request.request.id)} disabled={declineFriendRequestMutation.isPending} className="h-7 w-7" data-testid={`button-decline-request-${request.request.id}`}>
+                            <X className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Weekly Leaderboard */}
+              {leaderboard && leaderboard.length > 0 ? (
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="p-3 bg-muted/30 border-b">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Weekly Leaderboard</span>
+                      {leaderboard.length > 1 && (
+                        <span className="text-xs text-muted-foreground">
+                          You're #{leaderboard.find(e => e.user.totalXP === userProfile.totalXP)?.rank || 1} of {leaderboard.length}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="divide-y">
+                    {leaderboard.map((entry) => {
+                      const isCurrentUser = entry.user.totalXP === userProfile.totalXP;
+                      return (
+                        <div key={entry.user.id} className={`flex items-center gap-3 p-3 ${isCurrentUser ? "bg-primary/5" : ""}`} data-testid={`leaderboard-entry-${entry.user.id}`}>
+                          <div className="w-6 flex justify-center">
+                            {entry.rank === 1 ? (
+                              <Crown className="h-4 w-4 text-gold" />
+                            ) : (
+                              <span className="text-sm font-medium text-muted-foreground">{entry.rank}</span>
+                            )}
+                          </div>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={entry.user.profileImageUrl || undefined} />
+                            <AvatarFallback className="text-xs">{getUserInitials(entry.user)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${isCurrentUser ? "text-primary" : ""}`}>
+                              {getDisplayName(entry.user)} {isCurrentUser && "(You)"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Level {entry.user.level}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-1 text-gold">
+                              <Zap className="h-3.5 w-3.5" />
+                              <span className="text-sm font-medium tabular-nums">{entry.weeklyXp}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">this week</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 rounded-lg border border-dashed text-center">
+                  <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground mb-3">Add friends to compete on the weekly leaderboard</p>
+                  <Button variant="outline" size="sm" onClick={() => setAddFriendDialogOpen(true)} className="gap-1.5" data-testid="button-add-friend-empty">
+                    <UserPlus className="h-3.5 w-3.5" />Add Your First Friend
+                  </Button>
+                </div>
+              )}
+
+              {/* Friends List */}
+              {friends && friends.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Your Friends ({friends.length})</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {friends.map((friendData) => (
+                      <Tooltip key={friendData.friend.id}>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-card border group" data-testid={`friend-${friendData.friend.id}`}>
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={friendData.friend.profileImageUrl || undefined} />
+                              <AvatarFallback className="text-xs">{getUserInitials(friendData.friend)}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs font-medium">{getDisplayName(friendData.friend)}</span>
+                            <Button size="icon" variant="ghost" onClick={() => removeFriendMutation.mutate(friendData.friend.id)} disabled={removeFriendMutation.isPending} className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`button-remove-friend-${friendData.friend.id}`}>
+                              <UserMinus className="h-3 w-3 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Level {friendData.friend.level}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
@@ -787,6 +1182,48 @@ export function Dashboard({
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Friend Dialog */}
+      <Dialog open={addFriendDialogOpen} onOpenChange={setAddFriendDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" />
+              Add Friend
+            </DialogTitle>
+            <DialogDescription>Enter their username or email to send a friend request</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="friend-username">Username or Email</Label>
+              <Input 
+                id="friend-username" 
+                placeholder="Enter username or email" 
+                value={friendUsername} 
+                onChange={(e) => setFriendUsername(e.target.value)} 
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && friendUsername.trim()) {
+                    sendFriendRequestMutation.mutate(friendUsername.trim());
+                  }
+                }}
+                data-testid="input-friend-username" 
+              />
+            </div>
+            <Button 
+              className="w-full gap-2" 
+              onClick={() => sendFriendRequestMutation.mutate(friendUsername.trim())} 
+              disabled={!friendUsername.trim() || sendFriendRequestMutation.isPending}
+              data-testid="button-send-friend-request"
+            >
+              {sendFriendRequestMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Sending...</>
+              ) : (
+                <><UserPlus className="h-4 w-4" />Send Request</>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

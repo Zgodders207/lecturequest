@@ -143,6 +143,46 @@ export const calendarEventsTable = pgTable("calendar_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Lecture uploads for batch processing
+export const lectureUploadsTable = pgTable("lecture_uploads", {
+  id: serial("id").primaryKey(),
+  batchId: varchar("batch_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  filename: varchar("filename"),
+  status: varchar("status", { enum: ["pending", "processing", "completed", "error"] }).default("pending"),
+  error: text("error"),
+  lectureId: integer("lecture_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Dismissed lectures table for "forget" feature
+export const dismissedLecturesTable = pgTable("dismissed_lectures", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  calendarEventId: varchar("calendar_event_id").notNull(),
+  dismissedAt: timestamp("dismissed_at").defaultNow(),
+  reason: varchar("reason"),
+});
+
+// Friendships table for social features
+export const friendshipsTable = pgTable("friendships", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  friendId: varchar("friend_id").notNull(),
+  status: varchar("status", { enum: ["pending", "accepted", "declined"] }).default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  acceptedAt: timestamp("accepted_at"),
+});
+
+// Weekly XP logs for leaderboard tracking
+export const weeklyXpLogsTable = pgTable("weekly_xp_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  weekStart: timestamp("week_start").notNull(),
+  xpEarned: integer("xp_earned").default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
 export const insertLectureSchema = createInsertSchema(lecturesTable).omit({ id: true, createdAt: true });
@@ -152,6 +192,10 @@ export const insertDailyQuizPlanSchema = createInsertSchema(dailyQuizPlansTable)
 export const insertCachedQuestionSchema = createInsertSchema(cachedQuestionsTable).omit({ id: true, createdAt: true });
 export const insertCalendarSettingsSchema = createInsertSchema(calendarSettingsTable).omit({ id: true, createdAt: true });
 export const insertCalendarEventSchema = createInsertSchema(calendarEventsTable).omit({ id: true, createdAt: true });
+export const insertLectureUploadSchema = createInsertSchema(lectureUploadsTable).omit({ id: true, createdAt: true });
+export const insertDismissedLectureSchema = createInsertSchema(dismissedLecturesTable).omit({ id: true, dismissedAt: true });
+export const insertFriendshipSchema = createInsertSchema(friendshipsTable).omit({ id: true, createdAt: true });
+export const insertWeeklyXpLogSchema = createInsertSchema(weeklyXpLogsTable).omit({ id: true, updatedAt: true });
 
 // Select types
 export type DbUser = typeof usersTable.$inferSelect;
@@ -164,6 +208,10 @@ export type DbDailyQuizPlan = typeof dailyQuizPlansTable.$inferSelect;
 export type DbCachedQuestion = typeof cachedQuestionsTable.$inferSelect;
 export type DbCalendarSettings = typeof calendarSettingsTable.$inferSelect;
 export type DbCalendarEvent = typeof calendarEventsTable.$inferSelect;
+export type DbLectureUpload = typeof lectureUploadsTable.$inferSelect;
+export type DbDismissedLecture = typeof dismissedLecturesTable.$inferSelect;
+export type DbFriendship = typeof friendshipsTable.$inferSelect;
+export type DbWeeklyXpLog = typeof weeklyXpLogsTable.$inferSelect;
 
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -174,6 +222,38 @@ export type InsertDailyQuizPlan = z.infer<typeof insertDailyQuizPlanSchema>;
 export type InsertCachedQuestion = z.infer<typeof insertCachedQuestionSchema>;
 export type InsertCalendarSettings = z.infer<typeof insertCalendarSettingsSchema>;
 export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+export type InsertLectureUpload = z.infer<typeof insertLectureUploadSchema>;
+export type InsertDismissedLecture = z.infer<typeof insertDismissedLectureSchema>;
+export type InsertFriendship = z.infer<typeof insertFriendshipSchema>;
+export type InsertWeeklyXpLog = z.infer<typeof insertWeeklyXpLogSchema>;
+
+// Dismissed lecture interface
+export interface DismissedLecture {
+  id: string;
+  userId: string;
+  calendarEventId: string;
+  dismissedAt: string;
+  reason?: string;
+}
+
+// Friendship interface
+export interface Friendship {
+  id: string;
+  userId: string;
+  friendId: string;
+  status: "pending" | "accepted" | "declined";
+  createdAt: string;
+  acceptedAt?: string;
+}
+
+// Weekly XP log interface
+export interface WeeklyXpLog {
+  id: string;
+  userId: string;
+  weekStart: string;
+  xpEarned: number;
+  updatedAt: string;
+}
 
 // ==================== SHARED TYPES ====================
 
