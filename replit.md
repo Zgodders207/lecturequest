@@ -34,6 +34,14 @@ Preferred communication style: Simple, everyday language.
 - Current quiz state
 - View navigation (dashboard, upload, quiz, results, achievements)
 
+**Dashboard Design**: Clean, tab-based interface in `client/src/components/dashboard.tsx`:
+- Compact header with stats bar (Level, XP, Streak, Progress)
+- Three-tab navigation for focused content:
+  - **Today** tab: Daily quiz, reviews due, calendar events, study materials
+  - **Skills** tab: Skills profile with career insights and export
+  - **Progress** tab: Stats grid, achievements, power-ups
+- Demo mode for showcasing features with sample data
+
 **Routing**: Wouter for lightweight client-side routing
 
 **Data Fetching**: TanStack Query (React Query) with custom API request utilities in `client/src/lib/queryClient.ts`
