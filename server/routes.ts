@@ -579,7 +579,7 @@ Return ONLY valid JSON in this exact format:
 }
 
 Requirements:
-- Generate exactly 5 questions
+- Generate exactly 10 questions
 - Each question must have exactly 4 options
 - "correct" must be an index from 0 to 3
 - Questions should test understanding, not just memorization
@@ -675,12 +675,12 @@ Requirements:
   });
 
   // Get daily quiz status - shows due topics using active recall algorithm
-  app.get("/api/daily-quiz/status", (req, res) => {
+  app.get("/api/daily-quiz/status", async (req, res) => {
     try {
-      const dueTopics = storage.getDueTopics(10);
-      const currentPlan = storage.getCurrentDailyQuizPlan();
-      const lectures = storage.getLectures();
-      const profile = storage.getUserProfile();
+      const dueTopics = await storage.getDueTopics(10);
+      const currentPlan = await storage.getCurrentDailyQuizPlan();
+      const lectures = await storage.getLectures();
+      const profile = await storage.getUserProfile();
       
       // Get topic count from all lectures
       const allTopics = new Set<string>();
@@ -718,9 +718,9 @@ Requirements:
   app.post("/api/generate-daily-quiz", async (req, res) => {
     try {
       // Get due topics from spaced repetition algorithm
-      const dueTopics = storage.getDueTopics(8);
-      const lectures = storage.getLectures();
-      const profile = storage.getUserProfile();
+      const dueTopics = await storage.getDueTopics(10);
+      const lectures = await storage.getLectures();
+      const profile = await storage.getUserProfile();
       
       // If no tracked topics yet, use weak topics from lectures
       let topicsToReview: { topic: string; lectureId: string; lectureTitle: string; priority: number; reason: "due" | "weak" | "overdue" | "new"; daysSinceReview: number }[] = [];
@@ -782,23 +782,24 @@ Requirements:
       
       // Sort by priority and take top topics
       topicsToReview.sort((a, b) => b.priority - a.priority);
-      const selectedTopics = topicsToReview.slice(0, 5);
+      const selectedTopics = topicsToReview.slice(0, 10);
       
-      // Get lecture excerpts for context
+      // Get full lecture content for context (use actual content from database)
       const lectureExcerpts: { lectureId: string; excerpt: string }[] = [];
       const seenLectures = new Set<string>();
-      selectedTopics.forEach(t => {
+      for (const t of selectedTopics) {
         if (!seenLectures.has(t.lectureId)) {
+          const lectureContent = await storage.getLectureContent(t.lectureId);
           const lecture = lectures.find(l => l.id === t.lectureId);
-          if (lecture) {
+          if (lecture && lectureContent) {
             lectureExcerpts.push({
               lectureId: t.lectureId,
-              excerpt: lecture.content.substring(0, 500) + (lecture.content.length > 500 ? "..." : ""),
+              excerpt: lectureContent.substring(0, 2000) + (lectureContent.length > 2000 ? "..." : ""),
             });
             seenLectures.add(t.lectureId);
           }
         }
-      });
+      }
       
       // Build prompt with active recall focus
       const topicsList = selectedTopics.map(t => {
@@ -813,7 +814,7 @@ Requirements:
         return `Lecture: ${lecture?.title || "Unknown"}\nContent: ${e.excerpt}`;
       }).join("\n\n");
 
-      const prompt = `Generate 4-6 targeted multiple-choice questions using active recall principles for these topics that need review:
+      const prompt = `Generate exactly 10 targeted multiple-choice questions using active recall principles for these topics that need review:
 
 ${topicsList}
 
@@ -830,6 +831,7 @@ Active Recall Instructions:
 3. Use varied question formats (application, analysis, comparison)
 4. Focus on the "why" and "how" not just the "what"
 5. Include some questions that require recalling specific details
+6. Base questions on the actual lecture content provided above
 
 Return ONLY valid JSON in this exact format:
 [
@@ -843,7 +845,7 @@ Return ONLY valid JSON in this exact format:
 ]
 
 Important:
-- Generate 4-6 questions
+- Generate exactly 10 questions
 - Each question must have exactly 4 options
 - "correct" must be an index from 0 to 3
 - Explanations should reinforce learning and encourage spaced repetition
@@ -893,7 +895,7 @@ Important:
 
       // Create and store the daily quiz plan
       const planId = `plan-${Date.now()}`;
-      const plan = storage.setCurrentDailyQuizPlan({
+      const plan = await storage.setCurrentDailyQuizPlan({
         id: planId,
         generatedAt: new Date().toISOString(),
         topics: selectedTopics,
@@ -941,7 +943,7 @@ Important:
   });
 
   // Complete daily quiz and update spaced repetition stats
-  app.post("/api/daily-quiz/complete", (req, res) => {
+  app.post("/api/daily-quiz/complete", async (req, res) => {
     try {
       const { planId, score, topicScores } = req.body;
       
@@ -949,18 +951,18 @@ Important:
         return res.status(400).json({ error: "Invalid score" });
       }
       
-      const currentPlan = storage.getCurrentDailyQuizPlan();
+      const currentPlan = await storage.getCurrentDailyQuizPlan();
       if (!currentPlan || currentPlan.id !== planId) {
         return res.status(400).json({ error: "Invalid or expired quiz plan" });
       }
       
       // Update spaced repetition stats for each topic
       if (Array.isArray(topicScores)) {
-        topicScores.forEach((ts: { topic: string; correct: boolean; lectureId?: string }) => {
+        for (const ts of topicScores as { topic: string; correct: boolean; lectureId?: string }[]) {
           const topicScore = ts.correct ? 100 : 0;
           const topicData = currentPlan.topics.find(t => t.topic === ts.topic);
           if (topicData) {
-            storage.updateTopicReviewStats(
+            await storage.updateTopicReviewStats(
               ts.topic,
               topicData.lectureId,
               topicData.lectureTitle,
@@ -968,7 +970,7 @@ Important:
             );
             
             // Add review event
-            storage.addReviewEvent({
+            await storage.addReviewEvent({
               topicId: ts.topic,
               topic: ts.topic,
               lectureId: topicData.lectureId,
@@ -977,14 +979,14 @@ Important:
               wasCorrect: ts.correct,
             });
           }
-        });
+        }
       }
       
       // Complete the plan
-      const completedPlan = storage.completeDailyQuizPlan(score);
+      const completedPlan = await storage.completeDailyQuizPlan(score);
       
       // Update user profile with activity
-      const profile = storage.getUserProfile();
+      const profile = await storage.getUserProfile();
       const today = new Date().toISOString().split('T')[0];
       const lastActivity = profile.lastActivityDate;
       
@@ -1003,17 +1005,18 @@ Important:
         newStreak = 1;
       }
       
-      storage.updateUserProfile({
+      await storage.updateUserProfile({
         lastActivityDate: today,
         currentStreak: newStreak,
         longestStreak: Math.max(profile.longestStreak, newStreak),
       });
       
+      const nextDueTopics = await storage.getDueTopics(5);
       res.json({
         success: true,
         completedPlan,
         newStreak,
-        nextReviewSummary: storage.getDueTopics(5).map(t => ({
+        nextReviewSummary: nextDueTopics.map(t => ({
           topic: t.topic,
           nextDue: t.nextDue,
           interval: t.interval,
@@ -1118,9 +1121,9 @@ Important:
     }
   });
 
-  app.get("/api/profile", (req, res) => {
+  app.get("/api/profile", async (req, res) => {
     try {
-      const profile = storage.getUserProfile();
+      const profile = await storage.getUserProfile();
       res.json(profile);
     } catch (error: any) {
       console.error("Error fetching profile:", error);
@@ -1128,7 +1131,7 @@ Important:
     }
   });
 
-  app.patch("/api/profile", (req, res) => {
+  app.patch("/api/profile", async (req, res) => {
     try {
       const parsed = updateProfileSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1137,7 +1140,7 @@ Important:
           details: parsed.error.issues 
         });
       }
-      const updatedProfile = storage.updateUserProfile(parsed.data);
+      const updatedProfile = await storage.updateUserProfile(parsed.data);
       res.json(updatedProfile);
     } catch (error: any) {
       console.error("Error updating profile:", error);
@@ -1145,9 +1148,9 @@ Important:
     }
   });
 
-  app.post("/api/profile/reset", (req, res) => {
+  app.post("/api/profile/reset", async (req, res) => {
     try {
-      const profile = storage.resetUserProfile();
+      const profile = await storage.resetUserProfile();
       res.json(profile);
     } catch (error: any) {
       console.error("Error resetting profile:", error);
@@ -1155,9 +1158,9 @@ Important:
     }
   });
 
-  app.post("/api/profile/demo", (req, res) => {
+  app.post("/api/profile/demo", async (req, res) => {
     try {
-      const data = storage.loadDemoData();
+      const data = await storage.loadDemoData();
       res.json(data);
     } catch (error: any) {
       console.error("Error loading demo data:", error);
@@ -1165,9 +1168,9 @@ Important:
     }
   });
 
-  app.get("/api/lectures", (req, res) => {
+  app.get("/api/lectures", async (req, res) => {
     try {
-      const lectures = storage.getLectures();
+      const lectures = await storage.getLectures();
       res.json(lectures);
     } catch (error: any) {
       console.error("Error fetching lectures:", error);
@@ -1175,9 +1178,9 @@ Important:
     }
   });
 
-  app.get("/api/lectures/:id", (req, res) => {
+  app.get("/api/lectures/:id", async (req, res) => {
     try {
-      const lecture = storage.getLecture(req.params.id);
+      const lecture = await storage.getLecture(req.params.id);
       if (!lecture) {
         return res.status(404).json({ error: "Lecture not found" });
       }
@@ -1188,7 +1191,7 @@ Important:
     }
   });
 
-  app.post("/api/lectures", (req, res) => {
+  app.post("/api/lectures", async (req, res) => {
     try {
       const parsed = addLectureSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1197,7 +1200,7 @@ Important:
           details: parsed.error.issues 
         });
       }
-      const lecture = storage.addLecture(parsed.data);
+      const lecture = await storage.addLecture(parsed.data);
       res.json(lecture);
     } catch (error: any) {
       console.error("Error adding lecture:", error);
@@ -1205,7 +1208,7 @@ Important:
     }
   });
 
-  app.patch("/api/lectures/:id", (req, res) => {
+  app.patch("/api/lectures/:id", async (req, res) => {
     try {
       const { id } = req.params;
       const parsed = updateLectureSchema.safeParse(req.body);
@@ -1215,7 +1218,7 @@ Important:
           details: parsed.error.issues 
         });
       }
-      const updatedLecture = storage.updateLecture(id, parsed.data);
+      const updatedLecture = await storage.updateLecture(id, parsed.data);
       if (!updatedLecture) {
         return res.status(404).json({ error: "Lecture not found" });
       }
@@ -1226,10 +1229,10 @@ Important:
     }
   });
 
-  app.delete("/api/lectures/:id", (req, res) => {
+  app.delete("/api/lectures/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = storage.deleteLecture(id);
+      const deleted = await storage.deleteLecture(id);
       if (!deleted) {
         return res.status(404).json({ error: "Lecture not found" });
       }
@@ -1240,9 +1243,9 @@ Important:
     }
   });
 
-  app.get("/api/weak-topics", (req, res) => {
+  app.get("/api/weak-topics", async (req, res) => {
     try {
-      const topics = storage.getWeakTopics();
+      const topics = await storage.getWeakTopics();
       res.json(topics);
     } catch (error: any) {
       console.error("Error fetching weak topics:", error);
@@ -1250,9 +1253,9 @@ Important:
     }
   });
 
-  app.get("/api/skills", (req, res) => {
+  app.get("/api/skills", async (req, res) => {
     try {
-      const lectures = storage.getLectures();
+      const lectures = await storage.getLectures();
       
       const skillsMap = new Map<string, {
         name: string;
@@ -1314,11 +1317,11 @@ Important:
     }
   });
 
-  app.get("/api/calendar", (req, res) => {
+  app.get("/api/calendar", async (req, res) => {
     try {
-      const settings = storage.getCalendarSettings();
-      const events = storage.getCalendarEvents();
-      const lectures = storage.getLectures();
+      const settings = await storage.getCalendarSettings();
+      const events = await storage.getCalendarEvents();
+      const lectures = await storage.getLectures();
       
       const lecturesOnly = events.filter(e => e.eventType === "lecture");
       const examsOnly = events.filter(e => e.eventType === "exam");
@@ -1405,8 +1408,8 @@ Important:
         lastSyncStatus: "success",
       };
       
-      storage.setCalendarSettings(settings);
-      storage.setCalendarEvents(events);
+      await storage.setCalendarSettings(settings);
+      await storage.setCalendarEvents(events);
       
       const lecturesOnly = events.filter(e => e.eventType === "lecture");
       
@@ -1425,14 +1428,14 @@ Important:
 
   app.post("/api/calendar/refresh", async (req, res) => {
     try {
-      const settings = storage.getCalendarSettings();
+      const settings = await storage.getCalendarSettings();
       if (!settings) {
         return res.status(400).json({ error: "No calendar configured" });
       }
       
       const urlValidation = await validateCalendarUrlWithDns(settings.url);
       if (!urlValidation.valid) {
-        storage.clearCalendarSettings();
+        await storage.clearCalendarSettings();
         return res.status(400).json({ 
           error: "Stored calendar URL is invalid. Please reconnect your calendar."
         });
@@ -1447,7 +1450,7 @@ Important:
           lastSyncStatus: "error",
           lastSyncError: error,
         };
-        storage.setCalendarSettings(updatedSettings);
+        await storage.setCalendarSettings(updatedSettings);
         
         return res.status(400).json({ 
           error: "Failed to refresh calendar",
@@ -1462,8 +1465,8 @@ Important:
         lastSyncError: undefined,
       };
       
-      storage.setCalendarSettings(updatedSettings);
-      storage.setCalendarEvents(events);
+      await storage.setCalendarSettings(updatedSettings);
+      await storage.setCalendarEvents(events);
       
       const lecturesOnly = events.filter(e => e.eventType === "lecture");
       
@@ -1479,9 +1482,9 @@ Important:
     }
   });
 
-  app.delete("/api/calendar", (req, res) => {
+  app.delete("/api/calendar", async (req, res) => {
     try {
-      storage.clearCalendarSettings();
+      await storage.clearCalendarSettings();
       res.json({ success: true, message: "Calendar removed" });
     } catch (error: any) {
       console.error("Error removing calendar:", error);

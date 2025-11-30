@@ -1,4 +1,155 @@
 import { z } from "zod";
+import { pgTable, text, integer, real, boolean, timestamp, jsonb, serial } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+
+// ==================== DATABASE TABLES ====================
+
+// User profile table
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  level: integer("level").notNull().default(1),
+  totalXP: integer("total_xp").notNull().default(0),
+  xpToNextLevel: integer("xp_to_next_level").notNull().default(400),
+  currentStreak: integer("current_streak").notNull().default(0),
+  longestStreak: integer("longest_streak").notNull().default(0),
+  totalLectures: integer("total_lectures").notNull().default(0),
+  averageConfidence: real("average_confidence").notNull().default(0),
+  achievements: jsonb("achievements").notNull().default([]),
+  masteredTopics: jsonb("mastered_topics").notNull().default([]),
+  needsPractice: jsonb("needs_practice").notNull().default([]),
+  powerUps: jsonb("power_ups").notNull().default({}),
+  lastActivityDate: text("last_activity_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Lectures table - stores uploaded lecture content
+export const lecturesTable = pgTable("lectures", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  date: text("date").notNull(),
+  content: text("content").notNull(),
+  reviewScore: integer("review_score").notNull().default(0),
+  xpEarned: integer("xp_earned").notNull().default(0),
+  incorrectTopics: jsonb("incorrect_topics").notNull().default([]),
+  confidenceRating: integer("confidence_rating").notNull().default(0),
+  dailyQuizzes: jsonb("daily_quizzes").notNull().default([]),
+  needsReview: boolean("needs_review").notNull().default(true),
+  lastReviewed: text("last_reviewed"),
+  identifiedSkills: jsonb("identified_skills").notNull().default([]),
+  questionsAnswered: integer("questions_answered").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Topic review stats for spaced repetition algorithm
+export const topicReviewStatsTable = pgTable("topic_review_stats", {
+  id: serial("id").primaryKey(),
+  topic: text("topic").notNull(),
+  lectureId: integer("lecture_id").notNull(),
+  lectureTitle: text("lecture_title").notNull(),
+  lastReviewed: text("last_reviewed").notNull(),
+  lastScore: integer("last_score").notNull().default(0),
+  reviewCount: integer("review_count").notNull().default(1),
+  easeFactor: real("ease_factor").notNull().default(2.5),
+  interval: integer("interval").notNull().default(1),
+  nextDue: text("next_due").notNull(),
+  streak: integer("streak").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Review events history
+export const reviewEventsTable = pgTable("review_events", {
+  id: serial("id").primaryKey(),
+  topicId: text("topic_id").notNull(),
+  topic: text("topic").notNull(),
+  lectureId: integer("lecture_id").notNull(),
+  date: text("date").notNull(),
+  score: integer("score").notNull(),
+  responseTime: integer("response_time"),
+  wasCorrect: boolean("was_correct").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Daily quiz plans
+export const dailyQuizPlansTable = pgTable("daily_quiz_plans", {
+  id: serial("id").primaryKey(),
+  generatedAt: text("generated_at").notNull(),
+  topics: jsonb("topics").notNull().default([]),
+  lectureExcerpts: jsonb("lecture_excerpts").notNull().default([]),
+  completed: boolean("completed").notNull().default(false),
+  completedAt: text("completed_at"),
+  score: integer("score"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Cached quiz questions for each topic (to avoid regenerating)
+export const cachedQuestionsTable = pgTable("cached_questions", {
+  id: serial("id").primaryKey(),
+  topic: text("topic").notNull(),
+  lectureId: integer("lecture_id").notNull(),
+  question: text("question").notNull(),
+  options: jsonb("options").notNull(),
+  correct: integer("correct").notNull(),
+  explanation: text("explanation").notNull(),
+  timesUsed: integer("times_used").notNull().default(0),
+  lastUsed: text("last_used"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Calendar settings
+export const calendarSettingsTable = pgTable("calendar_settings", {
+  id: serial("id").primaryKey(),
+  url: text("url").notNull(),
+  lastSync: text("last_sync"),
+  lastSyncStatus: text("last_sync_status"),
+  lastSyncError: text("last_sync_error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Calendar events
+export const calendarEventsTable = pgTable("calendar_events", {
+  id: serial("id").primaryKey(),
+  uid: text("uid").notNull(),
+  title: text("title").notNull(),
+  eventType: text("event_type").notNull(),
+  startsAt: text("starts_at").notNull(),
+  endsAt: text("ends_at").notNull(),
+  location: text("location"),
+  description: text("description"),
+  matchedLectureId: integer("matched_lecture_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Insert schemas
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
+export const insertLectureSchema = createInsertSchema(lecturesTable).omit({ id: true, createdAt: true });
+export const insertTopicReviewStatsSchema = createInsertSchema(topicReviewStatsTable).omit({ id: true, createdAt: true });
+export const insertReviewEventSchema = createInsertSchema(reviewEventsTable).omit({ id: true, createdAt: true });
+export const insertDailyQuizPlanSchema = createInsertSchema(dailyQuizPlansTable).omit({ id: true, createdAt: true });
+export const insertCachedQuestionSchema = createInsertSchema(cachedQuestionsTable).omit({ id: true, createdAt: true });
+export const insertCalendarSettingsSchema = createInsertSchema(calendarSettingsTable).omit({ id: true, createdAt: true });
+export const insertCalendarEventSchema = createInsertSchema(calendarEventsTable).omit({ id: true, createdAt: true });
+
+// Select types
+export type DbUser = typeof usersTable.$inferSelect;
+export type DbLecture = typeof lecturesTable.$inferSelect;
+export type DbTopicReviewStats = typeof topicReviewStatsTable.$inferSelect;
+export type DbReviewEvent = typeof reviewEventsTable.$inferSelect;
+export type DbDailyQuizPlan = typeof dailyQuizPlansTable.$inferSelect;
+export type DbCachedQuestion = typeof cachedQuestionsTable.$inferSelect;
+export type DbCalendarSettings = typeof calendarSettingsTable.$inferSelect;
+export type DbCalendarEvent = typeof calendarEventsTable.$inferSelect;
+
+// Insert types
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertLecture = z.infer<typeof insertLectureSchema>;
+export type InsertTopicReviewStats = z.infer<typeof insertTopicReviewStatsSchema>;
+export type InsertReviewEvent = z.infer<typeof insertReviewEventSchema>;
+export type InsertDailyQuizPlan = z.infer<typeof insertDailyQuizPlanSchema>;
+export type InsertCachedQuestion = z.infer<typeof insertCachedQuestionSchema>;
+export type InsertCalendarSettings = z.infer<typeof insertCalendarSettingsSchema>;
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+
+// ==================== SHARED TYPES ====================
 
 // Transferable skill identified from lecture content
 export interface TransferableSkill {
