@@ -30,11 +30,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
         
+      - name: Create .env file
+        run: |
+          echo "NODE_ENV=production" > .env
+          echo "DEV_AUTH=true" >> .env
+          echo "DATABASE_URL=" >> .env
+        
       - name: Build
         run: npm run build
-        env:
-          NODE_ENV: production
-          DEV_AUTH: true
           
       - name: Setup Pages
         uses: actions/configure-pages@v4
