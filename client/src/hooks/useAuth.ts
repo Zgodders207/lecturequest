@@ -1,9 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-
+// Authentication bypassed - app uses local storage only
 export function useAuth() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/auth/user"],
-    retry: false,
-  });
-  return { user, isLoading, isAuthenticated: !!user };
+  return { 
+    user: { id: 'local-user', email: 'local@user.com' }, 
+    isLoading: false, 
+    isAuthenticated: true 
+  };
 }

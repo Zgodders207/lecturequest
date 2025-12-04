@@ -63,6 +63,33 @@ async function upsertUser(
 }
 
 export async function setupAuth(app: Express) {
+  // If DEV_AUTH=true, enable a simple development auth shim that avoids
+  // Replit OIDC and database-backed sessions. This makes local development
+  // possible without Replit environment variables or Postgres.
+  if (process.env.DEV_AUTH === "true") {
+    app.set("trust proxy", 1);
+    // lightweight in-memory session for local dev (default MemoryStore)
+    app.use(session({ secret: process.env.SESSION_SECRET || "dev-secret", resave: false, saveUninitialized: false } as any));
+    // attach a fake user for development to every request if missing
+    app.use((req, _res, next) => {
+      if (!req.user) {
+        req.user = {
+          claims: {
+            sub: process.env.DEV_USER_ID || "dev-user",
+            email: process.env.DEV_USER_EMAIL || "dev@example.com",
+            first_name: process.env.DEV_USER_FIRST_NAME || "Dev",
+            last_name: process.env.DEV_USER_LAST_NAME || "User",
+          },
+          access_token: "dev-token",
+          refresh_token: undefined,
+          expires_at: Number.MAX_SAFE_INTEGER,
+        } as any;
+      }
+      next();
+    });
+    return;
+  }
+
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
@@ -131,6 +158,11 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Short-circuit for local development shim
+  if (process.env.DEV_AUTH === "true") {
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

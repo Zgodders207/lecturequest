@@ -1,5 +1,4 @@
-import { useState, useCallback } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useCallback, useEffect } from "react";
 import { Header } from "@/components/header";
 import { Dashboard } from "@/components/dashboard";
 import { UploadView } from "@/components/upload-view";
@@ -9,7 +8,7 @@ import { ConfidenceRating } from "@/components/confidence-rating";
 import { AchievementsView } from "@/components/achievements-view";
 import { LevelUpOverlay } from "@/components/level-up-overlay";
 import { AchievementToastStack } from "@/components/achievement-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { localStorage2 } from "@/lib/localStorage";
 import {
   calculateXP,
   calculateLevel,
@@ -25,9 +24,31 @@ import type {
   Achievement,
   TransferableSkill 
 } from "@shared/schema";
-import { INITIAL_USER_PROFILE } from "@shared/schema";
+import { INITIAL_USER_PROFILE, DEMO_USER_PROFILE, DEMO_LECTURES } from "@shared/schema";
 
 type ViewType = "dashboard" | "upload" | "quiz" | "results" | "confidence" | "achievements" | "loading";
+
+// Mock quiz generation (simplified - in a real app you'd call an AI API)
+function generateMockQuiz(content: string, title: string): Question[] {
+  const topics = extractTopics(content);
+  return Array.from({ length: 10 }, (_, i) => ({
+    question: `Question ${i + 1} about ${title}: What is the main concept discussed?`,
+    options: ["Concept A", "Concept B", "Concept C", "Concept D"],
+    correct: Math.floor(Math.random() * 4),
+    explanation: "This tests your understanding of the key concepts.",
+    topic: topics[i % topics.length] || "General",
+  }));
+}
+
+function generateDailyMockQuiz(weakTopics: string[], lectures: Lecture[]): Question[] {
+  return Array.from({ length: 10 }, (_, i) => ({
+    question: `Review question ${i + 1}: ${weakTopics[i % weakTopics.length] || "General concept"}`,
+    options: ["Option A", "Option B", "Option C", "Option D"],
+    correct: Math.floor(Math.random() * 4),
+    explanation: "Review this topic to improve your understanding.",
+    topic: weakTopics[i % weakTopics.length] || "General",
+  }));
+}
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
@@ -47,101 +68,58 @@ export default function Home() {
   const [dailyQuizPlanId, setDailyQuizPlanId] = useState<string | null>(null);
   const [dailyQuizTopics, setDailyQuizTopics] = useState<{ topic: string; lectureTitle: string; reason: string }[]>([]);
   const [currentSkills, setCurrentSkills] = useState<TransferableSkill[]>([]);
+  
+  // Use localStorage instead of API
+  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
+  const [lectureHistory, setLectureHistory] = useState<Lecture[]>([]);
 
-  const { data: userProfile = INITIAL_USER_PROFILE } = useQuery<UserProfile>({
-    queryKey: ["/api/profile"],
-  });
+  // Load data from localStorage on mount
+  useEffect(() => {
+    setUserProfile(localStorage2.getUserProfile());
+    setLectureHistory(localStorage2.getLectures());
+  }, []);
 
-  const { data: lectureHistory = [] } = useQuery<Lecture[]>({
-    queryKey: ["/api/lectures"],
-  });
+  // Helper to refresh data from localStorage
+  const refreshData = () => {
+    setUserProfile(localStorage2.getUserProfile());
+    setLectureHistory(localStorage2.getLectures());
+  };
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (profile: Partial<UserProfile>) => {
-      const response = await apiRequest("PATCH", "/api/profile", profile);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-    },
-  });
+  const updateProfile = (updates: Partial<UserProfile>) => {
+    const updated = localStorage2.updateUserProfile(updates);
+    setUserProfile(updated);
+  };
 
-  const addLectureMutation = useMutation({
-    mutationFn: async (lecture: Omit<Lecture, "id">) => {
-      const response = await apiRequest("POST", "/api/lectures", lecture);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-    },
-  });
+  const addLecture = (lecture: Omit<Lecture, "id">) => {
+    localStorage2.addLecture(lecture);
+    refreshData();
+  };
 
-  const updateLectureMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Lecture> }) => {
-      const response = await apiRequest("PATCH", `/api/lectures/${id}`, data);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
-    },
-  });
+  const updateLecture = (id: string, data: Partial<Lecture>) => {
+    localStorage2.updateLecture(id, data);
+    refreshData();
+  };
 
-  const deleteLectureMutation = useMutation({
-    mutationFn: async (lectureId: string) => {
-      const response = await apiRequest("DELETE", `/api/lectures/${lectureId}`);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
-    },
-  });
+  const deleteLecture = (lectureId: string) => {
+    localStorage2.deleteLecture(lectureId);
+    refreshData();
+  };
 
-  const generateQuizMutation = useMutation({
-    mutationFn: async ({ content, title }: { content: string; title: string }) => {
-      const response = await apiRequest("POST", "/api/generate-quiz", { content, title });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setCurrentQuiz(data.questions);
-      setCurrentSkills(data.skills || []);
-      setCurrentView("quiz");
-    },
-    onError: () => {
-      setCurrentView("dashboard");
-    },
-  });
-
-  const generateDailyQuizMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/generate-daily-quiz", {});
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setCurrentQuiz(data.questions);
-      setDailyQuizPlanId(data.planId);
-      setDailyQuizTopics(data.focusTopics || []);
-      setIsDailyQuiz(true);
-      setCurrentLectureId(null);
-      setCurrentLectureTitle("Daily Quiz");
-      setCurrentView("quiz");
-    },
-    onError: () => {
-      setCurrentView("dashboard");
-      setIsDailyQuiz(false);
-    },
-  });
-
-  const completeDailyQuizMutation = useMutation({
-    mutationFn: async ({ planId, score, topicScores }: { planId: string; score: number; topicScores: { topic: string; correct: boolean }[] }) => {
-      const response = await apiRequest("POST", "/api/daily-quiz/complete", { planId, score, topicScores });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/daily-quiz/status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-    },
-  });
+  const loadDemoData = () => {
+    // Load demo profile
+    localStorage2.updateUserProfile(DEMO_USER_PROFILE);
+    
+    // Clear existing lectures and load demo lectures
+    const existingLectures = localStorage2.getLectures();
+    existingLectures.forEach(l => localStorage2.deleteLecture(l.id));
+    
+    DEMO_LECTURES.forEach(lecture => {
+      localStorage2.addLecture(lecture);
+    });
+    
+    // Refresh data
+    refreshData();
+  };
 
   const handleSaveLecture = useCallback((content: string, title: string) => {
     const lecture: Omit<Lecture, "id"> = {
@@ -155,14 +133,13 @@ export default function Home() {
       dailyQuizzes: [],
       needsReview: true,
       lastReviewed: undefined,
+      identifiedSkills: [],
+      questionsAnswered: 0,
     };
 
-    addLectureMutation.mutate(lecture, {
-      onSuccess: () => {
-        setCurrentView("dashboard");
-      },
-    });
-  }, [addLectureMutation]);
+    addLecture(lecture);
+    setCurrentView("dashboard");
+  }, []);
 
   const handleStartReview = useCallback((lectureId: string) => {
     const lecture = lectureHistory.find((l) => l.id === lectureId);
@@ -173,17 +150,26 @@ export default function Home() {
     setCurrentLectureId(lectureId);
     setCurrentLectureTitle(lecture.title);
     setCurrentLectureContent(lecture.content);
-    setCurrentView("loading");
-    generateQuizMutation.mutate({ content: lecture.content, title: lecture.title });
-  }, [lectureHistory, generateQuizMutation]);
+    
+    // Generate mock quiz questions from lecture content
+    const mockQuestions: Question[] = generateMockQuiz(lecture.content, lecture.title);
+    setCurrentQuiz(mockQuestions);
+    setCurrentSkills([]);
+    setCurrentView("quiz");
+  }, [lectureHistory]);
 
   const handleStartDailyQuiz = useCallback(() => {
     setIsDailyQuiz(true);
     setCurrentLectureId(null);
     setCurrentLectureTitle("Daily Quiz");
-    setCurrentView("loading");
-    generateDailyQuizMutation.mutate();
-  }, [generateDailyQuizMutation]);
+    
+    // Generate a daily quiz from weak topics
+    const weakTopics = localStorage2.getWeakTopics();
+    const mockQuestions: Question[] = generateDailyMockQuiz(weakTopics, lectureHistory);
+    setCurrentQuiz(mockQuestions);
+    setDailyQuizTopics(weakTopics.slice(0, 5).map(t => ({ topic: t, lectureTitle: "", reason: "review" })));
+    setCurrentView("quiz");
+  }, [lectureHistory]);
 
   const handleQuizComplete = useCallback((answers: { questionIndex: number; selectedAnswer: number; isCorrect: boolean }[]) => {
     const correctCount = answers.filter((a) => a.isCorrect).length;
@@ -308,7 +294,7 @@ export default function Home() {
       profileUpdate.achievements = tempProfile.achievements;
     }
 
-    updateProfileMutation.mutate(profileUpdate);
+    updateProfile(profileUpdate);
 
     if (calculatedNewLevel > oldLevel) {
       setNewLevel(calculatedNewLevel);
@@ -326,24 +312,13 @@ export default function Home() {
         if (rewards.includes("+1 Hint Power-Up")) {
           rewardPowerUps.hints = rewardPowerUps.hints + 1;
         }
-        updateProfileMutation.mutate({ powerUps: rewardPowerUps });
+        updateProfile({ powerUps: rewardPowerUps });
       }
     }
 
-    // Complete daily quiz if applicable
+    // Complete daily quiz if applicable (store in localStorage)
     if (isDailyQuiz && dailyQuizPlanId) {
-      const topicScores = currentQuiz.map((q: any, idx: number) => {
-        const answer = answers.find(a => a.questionIndex === idx);
-        return {
-          topic: q.topic || "General",
-          correct: answer?.isCorrect || false,
-        };
-      });
-      completeDailyQuizMutation.mutate({
-        planId: dailyQuizPlanId,
-        score: accuracyPercent,
-        topicScores,
-      });
+      localStorage2.completeDailyQuizPlan(accuracyPercent);
     }
 
     setCurrentView("results");
@@ -351,7 +326,7 @@ export default function Home() {
     if (calculatedNewLevel > oldLevel) {
       setTimeout(() => setShowLevelUp(true), 500);
     }
-  }, [currentQuiz, currentLectureId, userProfile, lectureHistory, perfectScoresCount, updateProfileMutation, isDailyQuiz, dailyQuizPlanId, completeDailyQuizMutation]);
+  }, [currentQuiz, currentLectureId, userProfile, lectureHistory, perfectScoresCount, isDailyQuiz, dailyQuizPlanId]);
 
   const handleConfidenceSubmit = useCallback((rating: number) => {
     const confidenceXP = rating * 5;
@@ -370,18 +345,15 @@ export default function Home() {
         proficiencyLevel: calculatedProficiency,
       }));
 
-      updateLectureMutation.mutate({
-        id: currentLectureId,
-        data: {
-          reviewScore: accuracy,
-          xpEarned: (quizResult?.xpEarned || 0) + confidenceXP,
-          incorrectTopics: weakTopics.slice(),
-          confidenceRating: rating,
-          needsReview: false,
-          lastReviewed: new Date().toISOString(),
-          identifiedSkills: skillsWithProficiency,
-          questionsAnswered: currentQuiz.length,
-        },
+      updateLecture(currentLectureId, {
+        reviewScore: accuracy,
+        xpEarned: (quizResult?.xpEarned || 0) + confidenceXP,
+        incorrectTopics: weakTopics.slice(),
+        confidenceRating: rating,
+        needsReview: false,
+        lastReviewed: new Date().toISOString(),
+        identifiedSkills: skillsWithProficiency,
+        questionsAnswered: currentQuiz.length,
       });
     }
 
@@ -402,7 +374,7 @@ export default function Home() {
       lastActivityDate: new Date().toISOString(),
     };
 
-    updateProfileMutation.mutate(profileUpdate);
+    updateProfile(profileUpdate);
 
     const tempProfile: UserProfile = { ...userProfile, ...profileUpdate };
     const unlockedAchievements = checkAchievements(
@@ -427,23 +399,23 @@ export default function Home() {
     setDailyQuizPlanId(null);
     setDailyQuizTopics([]);
     setCurrentSkills([]);
-  }, [currentLectureId, quizResult, weakTopics, userProfile, lectureHistory, perfectScoresCount, updateLectureMutation, updateProfileMutation, currentSkills]);
+  }, [currentLectureId, quizResult, weakTopics, userProfile, lectureHistory, perfectScoresCount, currentSkills, currentQuiz]);
 
   const handleUseHint = useCallback(() => {
     const updatedPowerUps = {
       ...userProfile.powerUps,
       hints: Math.max(0, userProfile.powerUps.hints - 1),
     };
-    updateProfileMutation.mutate({ powerUps: updatedPowerUps });
-  }, [userProfile.powerUps, updateProfileMutation]);
+    updateProfile({ powerUps: updatedPowerUps });
+  }, [userProfile.powerUps]);
 
   const handleUseSecondChance = useCallback(() => {
     const updatedPowerUps = {
       ...userProfile.powerUps,
       secondChance: Math.max(0, userProfile.powerUps.secondChance - 1),
     };
-    updateProfileMutation.mutate({ powerUps: updatedPowerUps });
-  }, [userProfile.powerUps, updateProfileMutation]);
+    updateProfile({ powerUps: updatedPowerUps });
+  }, [userProfile.powerUps]);
 
   const handleDismissAchievement = useCallback((id: string) => {
     setPendingAchievements((prev) => prev.filter((a) => a.id !== id));
@@ -460,8 +432,8 @@ export default function Home() {
           <UploadView
             onSave={handleSaveLecture}
             onBack={() => setCurrentView("dashboard")}
-            isSaving={addLectureMutation.isPending}
-            error={addLectureMutation.error?.message || null}
+            isSaving={false}
+            error={null}
           />
         );
 
@@ -534,7 +506,7 @@ export default function Home() {
             onStartUpload={() => setCurrentView("upload")}
             onStartReview={handleStartReview}
             onViewAchievements={() => setCurrentView("achievements")}
-            onDeleteLecture={(id) => deleteLectureMutation.mutate(id)}
+            onDeleteLecture={(id) => deleteLecture(id)}
             onStartDailyQuiz={handleStartDailyQuiz}
           />
         );
@@ -547,6 +519,7 @@ export default function Home() {
         userProfile={userProfile} 
         onNavigate={handleNavigate}
         currentView={currentView}
+        onLoadDemoData={loadDemoData}
       />
       
       <main>

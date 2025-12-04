@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { apiRequest } from "@/lib/queryClient";
+// Removed apiRequest import - file parsing now happens client-side
 
 interface UploadViewProps {
   onSave: (content: string, title: string) => void;
@@ -171,40 +171,9 @@ export function UploadView({ onSave, onBack, isSaving, error }: UploadViewProps)
       };
       reader.readAsText(file);
     } else {
-      setIsParsing(true);
-      try {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          try {
-            const base64 = (e.target?.result as string).split(",")[1];
-            
-            const response = await apiRequest("POST", "/api/parse-file", {
-              fileData: base64,
-              fileType: file.type,
-              fileName: file.name
-            });
-            
-            const result = await response.json();
-            
-            if (result.error) {
-              setParseError(result.error);
-            } else {
-              setContent(result.text);
-              const extractedTitle = result.title || extractTitleFromContent(result.text);
-              setTitle(extractedTitle);
-            }
-          } catch (err: any) {
-            console.error("Parse error:", err);
-            setParseError(err.message || "Failed to parse file. Please try again or paste text manually.");
-          } finally {
-            setIsParsing(false);
-          }
-        };
-        reader.readAsDataURL(file);
-      } catch (err: any) {
-        setIsParsing(false);
-        setParseError("Failed to read file. Please try again.");
-      }
+      // File parsing requires backend API - not available in localStorage-only mode
+      setParseError("File upload requires backend processing. Please use the 'Paste Text' tab to manually enter your lecture content.");
+      setIsParsing(false);
     }
   }, []);
 
@@ -331,23 +300,8 @@ export function UploadView({ onSave, onBack, isSaving, error }: UploadViewProps)
             status: "pending"
           });
         } else {
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const result = e.target?.result as string;
-              resolve(result.split(",")[1]);
-            };
-            reader.onerror = () => reject(new Error("Failed to read file"));
-            reader.readAsDataURL(file);
-          });
-
-          const response = await apiRequest("POST", "/api/parse-file", {
-            fileData: base64,
-            fileType: file.type,
-            fileName: file.name
-          });
-          
-          const result = await response.json();
+          // File parsing requires backend API - not available in localStorage-only mode
+          throw new Error("File upload requires backend processing. Only .txt files are supported in localStorage mode.");
           
           if (result.error) {
             updateBatchLecture(lectureId, { 
@@ -401,40 +355,9 @@ export function UploadView({ onSave, onBack, isSaving, error }: UploadViewProps)
       return;
     }
 
-    setIsBatchUploading(true);
-    setBatchError(null);
-    setBatchProgress(0);
-
-    try {
-      const response = await apiRequest("POST", "/api/lectures/batch", {
-        lectures: validLectures.map(l => ({
-          title: l.title.trim(),
-          content: l.content.trim(),
-          filename: l.filename
-        }))
-      });
-
-      const result: BatchResult = await response.json();
-      setBatchResult(result);
-      setBatchProgress(100);
-
-      // Update individual lecture statuses
-      result.results.forEach((r, idx) => {
-        const lecture = validLectures[idx];
-        if (lecture) {
-          updateBatchLecture(lecture.id, {
-            status: r.status,
-            error: r.error
-          });
-        }
-      });
-
-    } catch (err: any) {
-      console.error("Batch upload error:", err);
-      setBatchError(err.message || "Failed to upload lectures. Please try again.");
-    } finally {
-      setIsBatchUploading(false);
-    }
+    // Batch upload requires backend API - not available in localStorage-only mode
+    setBatchError("Batch upload requires backend processing. Please use single lecture upload via the 'Paste Text' tab.");
+    setIsBatchUploading(false);
   };
 
   const resetBatchUpload = () => {

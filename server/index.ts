@@ -1,4 +1,14 @@
 import express, { type Request, Response, NextFunction } from "express";
+import dotenv from "dotenv";
+
+// Load environment variables from .env when present (local development)
+dotenv.config();
+// If no DATABASE_URL is configured, default to DEV_AUTH for a smooth local
+// developer experience. This makes protected routes usable out-of-the-box.
+if (!process.env.DATABASE_URL && typeof process.env.DEV_AUTH === "undefined") {
+  process.env.DEV_AUTH = "true";
+  console.log("No DATABASE_URL detected — defaulting DEV_AUTH=true for local development");
+}
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -61,7 +71,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await registerRoutes(httpServer, app);
+  // Register API routes only when a DATABASE_URL is configured.
+  // This avoids importing database-heavy modules during quick local development.
+  if (process.env.DATABASE_URL) {
+    const { registerRoutes } = await import("./routes");
+    await registerRoutes(httpServer, app);
+  } else {
+    console.log("DATABASE_URL not set — skipping API routes. Client will still be served.");
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -86,14 +103,16 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  // On Windows the `reusePort` option is not supported; omit it there.
+  const listenOptions: any = {
+    port,
+    host: "0.0.0.0",
+  };
+  if (process.platform !== "win32") {
+    listenOptions.reusePort = true;
+  }
+
+  httpServer.listen(listenOptions, () => {
+    log(`serving on port ${port}`);
+  });
 })();

@@ -1,102 +1,23 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Zap, Flame, BookOpen, 
-  Play, Upload, ChevronRight, Trash2, Bell,
-  Target, Award, TrendingUp, Trophy, Clock,
-  Calendar, CalendarDays, RefreshCw, X, Loader2, FileCheck, Sparkles,
-  Brain, Briefcase, Download, GraduationCap, BarChart3, Lightbulb, ArrowUpRight, CheckCircle2,
-  EyeOff, MapPin, ChevronDown,
-  Users, UserPlus, UserMinus, Crown, Check
+  Play, Upload, ChevronRight, Trash2,
+  Target, Award, TrendingUp, Trophy,
+  Sparkles, Users, Bell,
+  Brain, Briefcase, GraduationCap, BarChart3, Lightbulb, ArrowUpRight, CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { UserProfile, Lecture, CalendarSettings, CalendarEvent, User, Friendship } from "@shared/schema";
+import type { UserProfile, Lecture } from "@shared/schema";
 import { xpForNextLevel, formatDate, getMotivationalQuote, getLevelTitle } from "@/lib/game-utils";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-interface CalendarData {
-  settings: CalendarSettings | null;
-  events: CalendarEvent[];
-  upcomingLectures: CalendarEvent[];
-  upcomingExams: CalendarEvent[];
-  missingLectures: CalendarEvent[];
-  totalMissed: number;
-  activeMissed: number;
-  dismissedCount: number;
-  totalEvents: number;
-  lectureCount: number;
-  examCount: number;
-}
-
-interface DailyQuizStatus {
-  hasDueTopics: boolean;
-  dueTopicsCount: number;
-  totalTopicsTracked: number;
-  dueTopics: {
-    topic: string;
-    lectureTitle: string;
-    lastScore: number;
-    daysSinceReview: number;
-    streak: number;
-    isOverdue: boolean;
-    reason: "overdue" | "weak" | "new" | "due";
-    reviewCount: number;
-  }[];
-  currentPlan: {
-    id: string;
-    topicsCount: number;
-    generatedAt: string;
-    completed: boolean;
-    topics?: {
-      topic: string;
-      lectureTitle: string;
-      reason: string;
-    }[];
-  } | null;
-  weeklyStreak: number;
-}
-
-interface SkillsData {
-  skills: {
-    name: string;
-    description: string;
-    category: string;
-    relevantCareers: string[];
-    proficiencyLevel: "developing" | "intermediate" | "proficient";
-    occurrenceCount: number;
-  }[];
-  totalSkills: number;
-  proficientCount: number;
-  intermediateCount: number;
-  developingCount: number;
-}
-
-interface FriendData {
-  friend: User;
-  status: string;
-}
-
-interface FriendRequestData {
-  from: User;
-  request: Friendship;
-}
-
-interface LeaderboardEntry {
-  user: User;
-  weeklyXp: number;
-  rank: number;
-}
+// Removed unused interfaces for calendar, friends, skills - these features require backend support
 
 interface DashboardProps {
   userProfile: UserProfile;
@@ -118,175 +39,17 @@ export function Dashboard({
   onStartDailyQuiz,
 }: DashboardProps) {
   const { toast } = useToast();
+  
+  // State for dialogs (features disabled but UI elements remain in dead code)
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
-  const [calendarUrl, setCalendarUrl] = useState("");
   const [demoDialogOpen, setDemoDialogOpen] = useState(false);
   const [missedLecturesOpen, setMissedLecturesOpen] = useState(false);
   const [topicPreviewOpen, setTopicPreviewOpen] = useState(false);
   const [addFriendDialogOpen, setAddFriendDialogOpen] = useState(false);
+  const [calendarUrl, setCalendarUrl] = useState("");
   const [friendUsername, setFriendUsername] = useState("");
   
-  const { data: calendarData } = useQuery<CalendarData>({
-    queryKey: ["/api/calendar"],
-  });
-  
-  const { data: friends } = useQuery<FriendData[]>({
-    queryKey: ["/api/friends"],
-  });
-  
-  const { data: friendRequests } = useQuery<FriendRequestData[]>({
-    queryKey: ["/api/friends/requests"],
-  });
-  
-  const { data: leaderboard } = useQuery<LeaderboardEntry[]>({
-    queryKey: ["/api/friends/leaderboard"],
-  });
-  
-  const { data: dailyQuizStatus } = useQuery<DailyQuizStatus>({
-    queryKey: ["/api/daily-quiz/status"],
-  });
-  
-  const { data: skillsData } = useQuery<SkillsData>({
-    queryKey: ["/api/skills"],
-  });
-  
-  const setCalendarMutation = useMutation({
-    mutationFn: async (url: string) => {
-      const response = await apiRequest("POST", "/api/calendar", { url });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
-      toast({ title: "Calendar connected", description: data.message });
-      setCalendarDialogOpen(false);
-      setCalendarUrl("");
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to connect calendar", description: error.message, variant: "destructive" });
-    },
-  });
-  
-  const refreshCalendarMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/calendar/refresh", {});
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
-      toast({ title: "Calendar refreshed" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to refresh calendar", description: error.message, variant: "destructive" });
-    },
-  });
-  
-  const removeCalendarMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("DELETE", "/api/calendar");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
-      toast({ title: "Calendar removed" });
-      setCalendarDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to remove calendar", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const demoModeMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/profile/demo", {});
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/lectures"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/daily-quiz/status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/skills"] });
-      toast({ title: "Demo mode activated", description: "Sample data loaded" });
-      setDemoDialogOpen(false);
-    },
-  });
-
-  const dismissLectureMutation = useMutation({
-    mutationFn: async (eventId: string) => {
-      const response = await apiRequest("POST", `/api/calendar/dismiss/${eventId}`, {});
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
-      toast({ title: "Lecture dismissed", description: "It won't appear in missed lectures anymore" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to dismiss lecture", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const sendFriendRequestMutation = useMutation({
-    mutationFn: async (username: string) => {
-      const response = await apiRequest("POST", "/api/friends/request", { username });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/friends/requests"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/friends/leaderboard"] });
-      toast({ title: "Friend request sent" });
-      setAddFriendDialogOpen(false);
-      setFriendUsername("");
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to send friend request", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const acceptFriendRequestMutation = useMutation({
-    mutationFn: async (requestId: string) => {
-      const response = await apiRequest("POST", `/api/friends/accept/${requestId}`, {});
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/friends/requests"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/friends/leaderboard"] });
-      toast({ title: "Friend request accepted" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to accept friend request", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const declineFriendRequestMutation = useMutation({
-    mutationFn: async (requestId: string) => {
-      const response = await apiRequest("POST", `/api/friends/decline/${requestId}`, {});
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/friends/requests"] });
-      toast({ title: "Friend request declined" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to decline friend request", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const removeFriendMutation = useMutation({
-    mutationFn: async (friendId: string) => {
-      const response = await apiRequest("DELETE", `/api/friends/${friendId}`);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/friends/leaderboard"] });
-      toast({ title: "Friend removed" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to remove friend", description: error.message, variant: "destructive" });
-    },
-  });
+  // Removed all API queries and mutations - calendar, friends, skills features require backend
 
   // Computed values
   const currentLevelXP = Math.pow(userProfile.level, 2) * 100;
@@ -303,81 +66,14 @@ export function Dashboard({
   const hasReviewsDue = lecturesNeedingReview.length > 0;
   const totalQuestionsAnswered = lectureHistory.reduce((sum, l) => sum + (l.questionsAnswered || 0), 0);
   const masteredTopicsCount = userProfile.masteredTopics?.length || 0;
-  const skillsCount = skillsData?.totalSkills || 0;
-  const hasCalendar = calendarData?.settings !== null;
-  const upcomingLectures = calendarData?.upcomingLectures || [];
-  const upcomingExams = calendarData?.upcomingExams || [];
-  const missingLectures = calendarData?.missingLectures || [];
-  const hasPriorityAction = dailyQuizStatus?.hasDueTopics || hasReviewsDue;
-  const pendingRequestsCount = friendRequests?.length || 0;
-  
-  const getUserInitials = (user: User) => {
-    if (user.firstName && user.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-    }
-    if (user.firstName) {
-      return user.firstName.slice(0, 2).toUpperCase();
-    }
-    if (user.email) {
-      return user.email.slice(0, 2).toUpperCase();
-    }
-    return "?";
-  };
-  
-  const getDisplayName = (user: User) => {
-    if (user.firstName && user.lastName) {
-      return `${user.firstName} ${user.lastName}`;
-    }
-    if (user.firstName) {
-      return user.firstName;
-    }
-    return user.email || "Unknown";
-  };
-  
-  const currentUserRank = leaderboard?.find(e => e.rank === leaderboard.findIndex(l => l.user.id === userProfile) + 1)?.rank;
-  
-  const formatEventDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    if (date.toDateString() === today.toDateString()) {
-      return `Today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return `Tomorrow at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-    return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + 
-      ` at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  };
+  const hasPriorityAction = hasReviewsDue || (onStartDailyQuiz && lectureHistory.length > 0);
+  const skillsCount = lectureHistory.reduce((sum, l) => sum + (l.identifiedSkills?.length || 0), 0);
+  const pendingRequestsCount = 0; // Friends feature requires backend
+  // Removed references to skillsData, calendarData, dailyQuizStatus, friendRequests, leaderboard - these require backend
+  // Removed helper functions: getUserInitials, getDisplayName, currentUserRank, formatEventDate, exportSkills - require backend
 
-  const exportSkills = () => {
-    if (!skillsData) return;
-    const csvContent = [
-      ["Skill", "Category", "Proficiency", "Relevant Careers", "Times Practiced"].join(","),
-      ...skillsData.skills.map(skill => [
-        `"${skill.name}"`,
-        `"${skill.category}"`,
-        skill.proficiencyLevel,
-        `"${skill.relevantCareers.join("; ")}"`,
-        skill.occurrenceCount
-      ].join(","))
-    ].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "skills-profile.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "Skills exported", description: "Your skills profile has been downloaded." });
-  };
-
-  // AI Learning Coach - Generate personalized insights (only when actionable data exists)
-  // Only enable quiz actions when daily quiz is actually available (not just reviews)
-  const hasQuizAction = Boolean(onStartDailyQuiz && dailyQuizStatus?.hasDueTopics);
-  
+  // AI Learning Coach - Simplified version without backend dependencies
   const aiInsights = useMemo(() => {
-    // Don't show insights if user has no meaningful data
     if (lectureHistory.length === 0 && userProfile.totalXP === 0) {
       return [];
     }
@@ -389,35 +85,23 @@ export function Dashboard({
       insights.push({ icon: "flame", text: `Amazing ${userProfile.currentStreak}-day streak! You're building strong habits.` });
     } else if (userProfile.currentStreak >= 3) {
       insights.push({ icon: "flame", text: `${userProfile.currentStreak}-day streak going strong. Keep the momentum!` });
-    } else if (userProfile.currentStreak === 0 && lectureHistory.length > 0 && hasQuizAction) {
-      // Only show streak restart if there's actually a quiz available
+    } else if (userProfile.currentStreak === 0 && lectureHistory.length > 0 && onStartDailyQuiz) {
       insights.push({ icon: "target", text: "Start a new streak today! Consistency is key to retention.", action: "quiz" });
     }
 
     // Accuracy-based insight
     if (averageAccuracy >= 85) {
       insights.push({ icon: "brain", text: `${averageAccuracy}% average accuracy - you're mastering the material!` });
-    } else if (averageAccuracy >= 60 && averageAccuracy < 85 && dailyQuizStatus?.dueTopics) {
-      const weakTopics = dailyQuizStatus.dueTopics.filter(t => t.lastScore < 70).slice(0, 2);
-      if (weakTopics.length > 0 && hasQuizAction) {
-        insights.push({ icon: "lightbulb", text: `Focus on "${weakTopics[0].topic}" to boost your score.`, action: "quiz" });
-      }
+    } else if (averageAccuracy >= 60 && averageAccuracy < 85 && lectureHistory.length > 0) {
+      insights.push({ icon: "lightbulb", text: "Keep practicing to boost your accuracy score!", action: "quiz" });
     }
 
-    // Skills-based insight
-    if (skillsData && skillsData.proficientCount > 0) {
-      const topSkill = skillsData.skills.find(s => s.proficiencyLevel === "proficient");
-      if (topSkill && topSkill.relevantCareers.length > 0) {
-        insights.push({ icon: "trending", text: `Your "${topSkill.name}" skill opens doors to ${topSkill.relevantCareers[0]}.` });
-      }
-    }
-
-    // Progress insight - only show if there's a way to earn XP
-    if (xpToNext <= 100 && hasQuizAction) {
+    // Progress insight
+    if (xpToNext <= 100 && onStartDailyQuiz) {
       insights.push({ icon: "target", text: `Only ${xpToNext} XP to Level ${userProfile.level + 1}! One quiz away.`, action: "quiz" });
     }
 
-    // Learning velocity - requires sufficient data
+    // Learning velocity
     if (lectureHistory.length >= 3) {
       const recentLectures = lectureHistory.slice(0, 3);
       const avgRecentScore = Math.round(recentLectures.reduce((sum, l) => sum + l.reviewScore, 0) / recentLectures.length);
@@ -426,8 +110,8 @@ export function Dashboard({
       }
     }
 
-    return insights.slice(0, 2); // Show max 2 insights
-  }, [userProfile, lectureHistory, averageAccuracy, skillsData, dailyQuizStatus, xpToNext, hasQuizAction]);
+    return insights.slice(0, 2);
+  }, [userProfile, lectureHistory, averageAccuracy, xpToNext, onStartDailyQuiz]);
 
   return (
     <div className="min-h-screen">
@@ -440,24 +124,7 @@ export function Dashboard({
               <h1 className="font-serif text-2xl tracking-tight">{getLevelTitle(userProfile.level)}</h1>
               <p className="text-sm text-muted-foreground">{getMotivationalQuote()}</p>
             </div>
-            <div className="flex items-center gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={() => setDemoDialogOpen(true)} variant="ghost" size="icon" data-testid="button-demo-mode" aria-label="Demo mode">
-                    <Sparkles className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Demo Mode</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={() => setCalendarDialogOpen(true)} variant="ghost" size="icon" className={hasCalendar ? "text-primary" : ""} data-testid="button-calendar-settings" aria-label="Calendar">
-                    <Calendar className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{hasCalendar ? "Calendar Settings" : "Connect Calendar"}</TooltipContent>
-              </Tooltip>
-            </div>
+            {/* Demo Mode and Calendar buttons removed - require backend */}
           </div>
           
           {/* Stats Bar */}
@@ -538,74 +205,7 @@ export function Dashboard({
               </div>
             )}
 
-            {/* Daily Quiz with Topic Preview */}
-            {dailyQuizStatus?.hasDueTopics && onStartDailyQuiz && (
-              <div className="rounded-xl bg-primary/5 border border-primary/20 overflow-hidden">
-                <div className="p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
-                      <Target className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-serif text-lg font-medium">Daily Quiz</h2>
-                        <Badge className="bg-primary/20 text-primary border-0 text-xs">{dailyQuizStatus.dueTopicsCount} topics</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">Practice to strengthen memory</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setTopicPreviewOpen(!topicPreviewOpen)} className="gap-1.5 text-xs" data-testid="button-preview-topics">
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${topicPreviewOpen ? 'rotate-180' : ''}`} />
-                        Preview
-                      </Button>
-                      <Button onClick={onStartDailyQuiz} className="gap-2" data-testid="button-start-daily-quiz">
-                        <Zap className="h-4 w-4" />Start
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Topic Preview Collapsible */}
-                {topicPreviewOpen && dailyQuizStatus.dueTopics.length > 0 && (
-                  <div className="px-5 pb-5">
-                    <div className="border-t border-primary/10 pt-4">
-                      <p className="text-xs text-muted-foreground mb-3">Topics to review:</p>
-                      <div className="space-y-2">
-                        {dailyQuizStatus.dueTopics.slice(0, 5).map((topic, i) => (
-                          <div key={i} className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-background/50" data-testid={`topic-preview-${i}`}>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{topic.topic}</p>
-                              <p className="text-xs text-muted-foreground truncate">{topic.lectureTitle}</p>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {topic.lastScore > 0 && (
-                                <span className="text-xs text-muted-foreground tabular-nums">{topic.lastScore}%</span>
-                              )}
-                              <Badge 
-                                variant="secondary" 
-                                className={`text-xs ${
-                                  topic.reason === 'overdue' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                                  topic.reason === 'weak' ? 'bg-gold/10 text-gold border-gold/20' :
-                                  topic.reason === 'new' ? 'bg-primary/10 text-primary border-primary/20' :
-                                  'bg-muted'
-                                }`}
-                              >
-                                {topic.reason}
-                              </Badge>
-                            </div>
-                          </div>
-                        ))}
-                        {dailyQuizStatus.dueTopics.length > 5 && (
-                          <p className="text-xs text-muted-foreground text-center pt-1">
-                            +{dailyQuizStatus.dueTopics.length - 5} more topics
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Daily Quiz section removed - requires backend dailyQuizStatus API */}
 
             {/* Reviews Due */}
             {hasReviewsDue && (
@@ -641,8 +241,8 @@ export function Dashboard({
               </div>
             )}
 
-            {/* Upcoming Schedule */}
-            {(upcomingLectures.length > 0 || upcomingExams.length > 0) && (
+            {/* Upcoming Schedule - removed, requires backend calendar data */}
+            {false && (upcomingLectures.length > 0 || upcomingExams.length > 0) && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-serif text-lg">Upcoming</h3>
@@ -675,8 +275,8 @@ export function Dashboard({
               </div>
             )}
 
-            {/* Missed Lectures Section */}
-            {missingLectures.length > 0 && (
+            {/* Missed Lectures Section - removed, requires backend calendar data */}
+            {false && missingLectures.length > 0 && (
               <Collapsible open={missedLecturesOpen || missingLectures.length <= 3} onOpenChange={setMissedLecturesOpen}>
                 <div className="rounded-xl border border-destructive/20 bg-destructive/5 overflow-hidden">
                   <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover-elevate" data-testid="button-toggle-missed-lectures">
@@ -781,43 +381,48 @@ export function Dashboard({
             )}
           </TabsContent>
 
-          {/* SKILLS TAB */}
+          {/* SKILLS TAB - Shows skills from lecture data */}
           <TabsContent value="skills" className="space-y-6" role="tabpanel" aria-label="Your transferable skills profile" data-testid="section-skills-profile">
-            {skillsData && skillsData.skills.length > 0 ? (
+            {(() => {
+              // Gather all skills from lectures
+              const allSkills = lectureHistory.flatMap(l => l.identifiedSkills || []);
+              const uniqueSkills = Array.from(new Map(allSkills.map(s => [s.name, s])).values());
+              const proficientCount = uniqueSkills.filter(s => s.proficiencyLevel === "proficient").length;
+              const intermediateCount = uniqueSkills.filter(s => s.proficiencyLevel === "intermediate").length;
+              const developingCount = uniqueSkills.filter(s => s.proficiencyLevel === "developing").length;
+              
+              return uniqueSkills.length > 0 ? (
               <>
                 {/* Skills Summary */}
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="font-serif text-xl">Your Skills Profile</h2>
-                    <p className="text-sm text-muted-foreground">{skillsData.totalSkills} transferable skills from your learning</p>
+                    <p className="text-sm text-muted-foreground">{uniqueSkills.length} transferable skills from your learning</p>
                   </div>
-                  <Button onClick={exportSkills} variant="outline" size="sm" className="gap-1.5" data-testid="button-export-skills">
-                    <Download className="h-3.5 w-3.5" />Export
-                  </Button>
                 </div>
 
                 {/* Proficiency Breakdown */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="p-4 rounded-lg bg-success/5 border border-success/20 text-center">
                     <GraduationCap className="h-5 w-5 text-success mx-auto mb-1" />
-                    <p className="text-2xl font-semibold text-success" data-testid="text-proficient-count">{skillsData.proficientCount}</p>
+                    <p className="text-2xl font-semibold text-success" data-testid="text-proficient-count">{proficientCount}</p>
                     <p className="text-xs text-muted-foreground">Proficient</p>
                   </div>
                   <div className="p-4 rounded-lg bg-gold/5 border border-gold/20 text-center">
                     <TrendingUp className="h-5 w-5 text-gold mx-auto mb-1" />
-                    <p className="text-2xl font-semibold text-gold" data-testid="text-intermediate-count">{skillsData.intermediateCount}</p>
+                    <p className="text-2xl font-semibold text-gold" data-testid="text-intermediate-count">{intermediateCount}</p>
                     <p className="text-xs text-muted-foreground">Intermediate</p>
                   </div>
                   <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-center">
                     <Brain className="h-5 w-5 text-primary mx-auto mb-1" />
-                    <p className="text-2xl font-semibold text-primary" data-testid="text-developing-count">{skillsData.developingCount}</p>
+                    <p className="text-2xl font-semibold text-primary" data-testid="text-developing-count">{developingCount}</p>
                     <p className="text-xs text-muted-foreground">Developing</p>
                   </div>
                 </div>
 
                 {/* Skills List with Progress Visualization */}
                 <div className="space-y-3">
-                  {skillsData.skills.map((skill, index) => {
+                  {uniqueSkills.map((skill, index) => {
                     const proficiencyPercent = skill.proficiencyLevel === "proficient" ? 100 : skill.proficiencyLevel === "intermediate" ? 66 : 33;
                     const proficiencyColor = skill.proficiencyLevel === "proficient" ? "bg-success" : skill.proficiencyLevel === "intermediate" ? "bg-gold" : "bg-primary";
                     return (
@@ -862,12 +467,13 @@ export function Dashboard({
               <div className="p-8 rounded-xl border border-dashed text-center">
                 <Brain className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
                 <h2 className="font-serif text-lg font-medium mb-2">No Skills Yet</h2>
-                <p className="text-muted-foreground mb-4">Complete quizzes to identify your transferable skills</p>
+                <p className="text-muted-foreground mb-4">Upload lectures with identified skills to see your profile</p>
                 <Button onClick={onStartUpload} variant="outline" className="gap-2">
                   <Upload className="h-4 w-4" />Upload a Lecture
                 </Button>
               </div>
-            )}
+            );
+            })()}
           </TabsContent>
 
           {/* PROGRESS TAB */}
@@ -1012,141 +618,20 @@ export function Dashboard({
               </div>
             )}
 
-            {/* Friends & Leaderboard */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-serif text-lg flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  Friends & Leaderboard
-                </h3>
-                <Button variant="outline" size="sm" onClick={() => setAddFriendDialogOpen(true)} className="gap-1.5" data-testid="button-add-friend">
-                  <UserPlus className="h-3.5 w-3.5" />Add Friend
-                </Button>
-              </div>
-
-              {/* Pending Friend Requests */}
-              {friendRequests && friendRequests.length > 0 && (
-                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Friend Requests</span>
-                    <Badge variant="secondary" className="text-xs">{friendRequests.length}</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {friendRequests.map((request) => (
-                      <div key={request.request.id} className="flex items-center justify-between p-2 rounded-md bg-background/50" data-testid={`friend-request-${request.request.id}`}>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={request.from.profileImageUrl || undefined} />
-                            <AvatarFallback className="text-xs">{getUserInitials(request.from)}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm font-medium">{getDisplayName(request.from)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => acceptFriendRequestMutation.mutate(request.request.id)} disabled={acceptFriendRequestMutation.isPending} className="h-7 w-7" data-testid={`button-accept-request-${request.request.id}`}>
-                            <Check className="h-4 w-4 text-success" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => declineFriendRequestMutation.mutate(request.request.id)} disabled={declineFriendRequestMutation.isPending} className="h-7 w-7" data-testid={`button-decline-request-${request.request.id}`}>
-                            <X className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Weekly Leaderboard */}
-              {leaderboard && leaderboard.length > 0 ? (
-                <div className="rounded-lg border overflow-hidden">
-                  <div className="p-3 bg-muted/30 border-b">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Weekly Leaderboard</span>
-                      {leaderboard.length > 1 && (
-                        <span className="text-xs text-muted-foreground">
-                          You're #{leaderboard.find(e => e.user.totalXP === userProfile.totalXP)?.rank || 1} of {leaderboard.length}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="divide-y">
-                    {leaderboard.map((entry) => {
-                      const isCurrentUser = entry.user.totalXP === userProfile.totalXP;
-                      return (
-                        <div key={entry.user.id} className={`flex items-center gap-3 p-3 ${isCurrentUser ? "bg-primary/5" : ""}`} data-testid={`leaderboard-entry-${entry.user.id}`}>
-                          <div className="w-6 flex justify-center">
-                            {entry.rank === 1 ? (
-                              <Crown className="h-4 w-4 text-gold" />
-                            ) : (
-                              <span className="text-sm font-medium text-muted-foreground">{entry.rank}</span>
-                            )}
-                          </div>
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={entry.user.profileImageUrl || undefined} />
-                            <AvatarFallback className="text-xs">{getUserInitials(entry.user)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${isCurrentUser ? "text-primary" : ""}`}>
-                              {getDisplayName(entry.user)} {isCurrentUser && "(You)"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Level {entry.user.level}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="flex items-center gap-1 text-gold">
-                              <Zap className="h-3.5 w-3.5" />
-                              <span className="text-sm font-medium tabular-nums">{entry.weeklyXp}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground">this week</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-6 rounded-lg border border-dashed text-center">
-                  <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground mb-3">Add friends to compete on the weekly leaderboard</p>
-                  <Button variant="outline" size="sm" onClick={() => setAddFriendDialogOpen(true)} className="gap-1.5" data-testid="button-add-friend-empty">
-                    <UserPlus className="h-3.5 w-3.5" />Add Your First Friend
-                  </Button>
-                </div>
-              )}
-
-              {/* Friends List */}
-              {friends && friends.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Your Friends ({friends.length})</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {friends.map((friendData) => (
-                      <Tooltip key={friendData.friend.id}>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-card border group" data-testid={`friend-${friendData.friend.id}`}>
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={friendData.friend.profileImageUrl || undefined} />
-                              <AvatarFallback className="text-xs">{getUserInitials(friendData.friend)}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs font-medium">{getDisplayName(friendData.friend)}</span>
-                            <Button size="icon" variant="ghost" onClick={() => removeFriendMutation.mutate(friendData.friend.id)} disabled={removeFriendMutation.isPending} className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" data-testid={`button-remove-friend-${friendData.friend.id}`}>
-                              <UserMinus className="h-3 w-3 text-muted-foreground" />
-                            </Button>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Level {friendData.friend.level}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ))}
-                  </div>
-                </div>
-              )}
+            {/* Friends & Leaderboard section removed - requires backend API */}
+            <div className="p-6 rounded-lg border border-dashed text-center">
+              <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground mb-3">Friends and leaderboard features require backend support</p>
+              <p className="text-xs text-muted-foreground">These features are disabled in localStorage-only mode</p>
             </div>
+
+            {/* All friends/leaderboard content removed - requires backend */}
           </TabsContent>
         </Tabs>
       </div>
       
-      {/* Calendar Dialog */}
-      <Dialog open={calendarDialogOpen} onOpenChange={setCalendarDialogOpen}>
+      {/* Calendar Dialog removed - requires backend */}
+      {false && <Dialog open={calendarDialogOpen} onOpenChange={setCalendarDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif">{hasCalendar ? "Calendar Settings" : "Connect Your Calendar"}</DialogTitle>
@@ -1183,10 +668,10 @@ export function Dashboard({
             </div>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog>}
 
-      {/* Add Friend Dialog */}
-      <Dialog open={addFriendDialogOpen} onOpenChange={setAddFriendDialogOpen}>
+      {/* Add Friend Dialog removed - requires backend */}
+      {false && <Dialog open={addFriendDialogOpen} onOpenChange={setAddFriendDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif flex items-center gap-2">
@@ -1225,10 +710,10 @@ export function Dashboard({
             </Button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
 
-      {/* Demo Dialog */}
-      <AlertDialog open={demoDialogOpen} onOpenChange={setDemoDialogOpen}>
+      {/* Demo Dialog removed - requires backend */}
+      {false && <AlertDialog open={demoDialogOpen} onOpenChange={setDemoDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">Enter Demo Mode?</AlertDialogTitle>
@@ -1241,7 +726,7 @@ export function Dashboard({
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
     </div>
   );
 }

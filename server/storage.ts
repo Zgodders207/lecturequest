@@ -1,5 +1,5 @@
 import { eq, lte, desc, and, sql, or, inArray, gte } from "drizzle-orm";
-import { db } from "./db";
+import { db, hasDatabase } from "./db";
 import {
   usersTable,
   lecturesTable,
@@ -1067,4 +1067,320 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Provide a lightweight in-memory storage implementation for local development
+// when a real database is not configured. This mirrors enough of the real
+// database behavior for the app to run locally with demo data.
+
+class LocalMemoryStorage implements IStorage {
+  users = new Map<string, any>();
+  lectures = new Map<string, any[]>();
+  calendarSettings = new Map<string, any>();
+  calendarEvents = new Map<string, any[]>();
+  topicStats = new Map<string, any[]>();
+  dailyPlans = new Map<string, any>();
+  cachedQuestions = new Map<string, any[]>();
+  uploads = new Map<string, any[]>();
+  dismissed = new Map<string, any[]>();
+  friendships = new Map<string, any[]>();
+  weeklyXp = new Map<string, number>();
+
+  async getUser(id: string) {
+    return this.users.get(id);
+  }
+
+  async upsertUser(userData: UpsertUser) {
+    const existing = this.users.get(userData.id) || {};
+    const merged = { ...existing, ...userData };
+    this.users.set(userData.id, merged);
+    return merged as User;
+  }
+
+  async getUserProfile(userId: string) {
+    let user = this.users.get(userId);
+    if (!user) {
+      const profile = { ...INITIAL_USER_PROFILE, ...DEMO_USER_PROFILE } as any;
+      // ensure id is present
+      profile.id = userId;
+      this.users.set(userId, { id: userId, ...profile });
+      this.lectures.set(userId, (DEMO_LECTURES || []).map((l: any, i: number) => ({ ...l, id: String(i + 1) })));
+      this.calendarSettings.set(userId, DEMO_CALENDAR_SETTINGS || null);
+      this.calendarEvents.set(userId, DEMO_CALENDAR_EVENTS || []);
+      return profile as UserProfile;
+    }
+    // if stored user has profile fields, map them
+    return (user.profile || INITIAL_USER_PROFILE) as UserProfile;
+  }
+
+  async updateUserProfile(userId: string, updates: Partial<UserProfile>) {
+    const user = this.users.get(userId) || { profile: { ...INITIAL_USER_PROFILE } };
+    user.profile = { ...user.profile, ...updates };
+    this.users.set(userId, user);
+    return user.profile as UserProfile;
+  }
+
+  async resetUserProfile(userId: string) {
+    this.lectures.set(userId, []);
+    this.topicStats.set(userId, []);
+    this.dailyPlans.delete(userId);
+    this.cachedQuestions.delete(userId);
+    this.calendarSettings.delete(userId);
+    this.calendarEvents.delete(userId);
+    const profile = { ...INITIAL_USER_PROFILE } as UserProfile;
+    const user = this.users.get(userId) || {};
+    user.profile = profile;
+    this.users.set(userId, user);
+    return profile;
+  }
+
+  async loadDemoData(userId: string) {
+    await this.resetUserProfile(userId);
+    const profile = { ...DEMO_USER_PROFILE } as UserProfile;
+    this.users.set(userId, { profile });
+    const lectures = (DEMO_LECTURES || []).map((l: any, i: number) => ({ ...l, id: String(i + 1) }));
+    this.lectures.set(userId, lectures);
+    this.calendarSettings.set(userId, DEMO_CALENDAR_SETTINGS || null);
+    this.calendarEvents.set(userId, DEMO_CALENDAR_EVENTS || []);
+    return { profile, lectures, calendarSettings: DEMO_CALENDAR_SETTINGS, calendarEvents: DEMO_CALENDAR_EVENTS };
+  }
+
+  async getLectures(userId: string) {
+    return this.lectures.get(userId) || [];
+  }
+
+  async getLecture(userId: string, id: string) {
+    const list = this.lectures.get(userId) || [];
+    return list.find(l => String(l.id) === String(id));
+  }
+
+  async addLecture(userId: string, lecture: Omit<Lecture, "id">) {
+    const list = this.lectures.get(userId) || [];
+    const id = String((list.length || 0) + 1);
+    const newL = { id, ...lecture } as Lecture;
+    list.push(newL);
+    this.lectures.set(userId, list);
+    return newL;
+  }
+
+  async updateLecture(userId: string, id: string, updates: Partial<Lecture>) {
+    const list = this.lectures.get(userId) || [];
+    const idx = list.findIndex(l => String(l.id) === String(id));
+    if (idx === -1) return undefined;
+    list[idx] = { ...list[idx], ...updates };
+    this.lectures.set(userId, list);
+    return list[idx];
+  }
+
+  async deleteLecture(userId: string, id: string) {
+    const list = this.lectures.get(userId) || [];
+    const before = list.length;
+    this.lectures.set(userId, list.filter(l => String(l.id) !== String(id)));
+    return this.lectures.get(userId)!.length < before;
+  }
+
+  async getLectureContent(userId: string, id: string) {
+    const lecture = await this.getLecture(userId, id);
+    return lecture?.content;
+  }
+
+  async getWeakTopics(userId: string) {
+    const lectures = this.lectures.get(userId) || [];
+    const topics = new Set<string>();
+    lectures.forEach((l: any) => (l.incorrectTopics || []).forEach((t: string) => topics.add(t)));
+    return Array.from(topics);
+  }
+
+  async getCalendarSettings(userId: string) {
+    return this.calendarSettings.get(userId) || null;
+  }
+
+  async setCalendarSettings(userId: string, settings: CalendarSettings) {
+    this.calendarSettings.set(userId, settings);
+    return settings;
+  }
+
+  async clearCalendarSettings(userId: string) {
+    this.calendarSettings.delete(userId);
+  }
+
+  async getCalendarEvents(userId: string) {
+    return this.calendarEvents.get(userId) || [];
+  }
+
+  async setCalendarEvents(userId: string, events: CalendarEvent[]) {
+    this.calendarEvents.set(userId, events);
+    return events;
+  }
+
+  async updateCalendarEventMatch(userId: string, eventId: string, lectureId: string | null) {
+    const events = this.calendarEvents.get(userId) || [];
+    const ev = events.find(e => String(e.id) === String(eventId));
+    if (!ev) return undefined;
+    ev.matchedLectureId = lectureId || undefined;
+    return ev;
+  }
+
+  async getTopicReviewStats(userId: string) {
+    return this.topicStats.get(userId) || [];
+  }
+
+  async getTopicReviewStat(userId: string, topic: string) {
+    const list = this.topicStats.get(userId) || [];
+    return list.find((t: any) => t.topic === topic);
+  }
+
+  async updateTopicReviewStats(userId: string, topic: string, lectureId: string, lectureTitle: string, score: number) {
+    const list = this.topicStats.get(userId) || [];
+    let stat = list.find((s: any) => s.topic === topic);
+    if (!stat) {
+      stat = { topic, lectureId, lectureTitle, lastReviewed: new Date().toISOString().split("T")[0], lastScore: score, reviewCount: 1, easeFactor: 2.5, interval: 1, nextDue: new Date().toISOString().split("T")[0], streak: score >= 70 ? 1 : 0 };
+      list.push(stat);
+    } else {
+      stat.lastReviewed = new Date().toISOString().split("T")[0];
+      stat.lastScore = score;
+      stat.reviewCount = (stat.reviewCount || 0) + 1;
+    }
+    this.topicStats.set(userId, list);
+    return stat;
+  }
+
+  async initializeTopicsFromLecture(userId: string, lectureId: string, topics: string[]) {
+    const list = this.topicStats.get(userId) || [];
+    topics.forEach(t => {
+      if (!list.find((s: any) => s.topic === t)) {
+        list.push({ topic: t, lectureId, lectureTitle: "", lastReviewed: null, lastScore: 0, reviewCount: 0, easeFactor: 2.5, interval: 1, nextDue: new Date().toISOString().split("T")[0], streak: 0 });
+      }
+    });
+    this.topicStats.set(userId, list);
+  }
+
+  async getDueTopics(userId: string, limit = 10) {
+    const list = this.topicStats.get(userId) || [];
+    return list.slice(0, limit);
+  }
+
+  async getCurrentDailyQuizPlan(userId: string) {
+    return this.dailyPlans.get(userId) || null;
+  }
+
+  async setCurrentDailyQuizPlan(userId: string, plan: DailyQuizPlan) {
+    this.dailyPlans.set(userId, plan);
+    return plan;
+  }
+
+  async completeDailyQuizPlan(userId: string, score: number) {
+    const plan = this.dailyPlans.get(userId) || null;
+    if (!plan) return null;
+    plan.completed = true;
+    plan.score = score;
+    plan.completedAt = new Date().toISOString();
+    this.dailyPlans.set(userId, plan);
+    return plan;
+  }
+
+  async addReviewEvent(userId: string, event: Omit<ReviewEvent, "id">) {
+    const id = String(Date.now());
+    const ev = { id, ...event } as ReviewEvent;
+    const list = (this.topicStats.get(userId) || []);
+    // store in reviewEvents map if needed (not implemented fully)
+    return ev;
+  }
+
+  async getReviewHistory(userId: string, limit = 50) {
+    return [];
+  }
+
+  async getCachedQuestions(userId: string, topic: string, lectureId: string) {
+    const key = `${userId}:${topic}:${lectureId}`;
+    return this.cachedQuestions.get(key) || [];
+  }
+
+  async cacheQuestions(userId: string, topic: string, lectureId: string, questions: Question[]) {
+    const key = `${userId}:${topic}:${lectureId}`;
+    this.cachedQuestions.set(key, questions);
+  }
+
+  async createBatchUpload(userId: string, batchId: string, items: { filename: string | null }[]) {
+    const uploads = items.map((it, i) => ({ id: `${batchId}-${i}`, batchId, userId, filename: it.filename, status: "pending", error: null, lectureId: null, createdAt: new Date().toISOString() }));
+    const existing = this.uploads.get(batchId) || [];
+    this.uploads.set(batchId, existing.concat(uploads));
+    return uploads;
+  }
+
+  async updateBatchUploadStatus(userId: string, uploadId: string, status: "pending" | "processing" | "completed" | "error", lectureId?: string, error?: string) {
+    for (const [batchId, items] of this.uploads) {
+      const idx = items.findIndex((u: any) => u.id === uploadId && u.userId === userId);
+      if (idx !== -1) {
+        items[idx].status = status;
+        items[idx].lectureId = lectureId || null;
+        items[idx].error = error || null;
+        return items[idx];
+      }
+    }
+    return undefined;
+  }
+
+  async getBatchUploads(userId: string, batchId: string) {
+    return this.uploads.get(batchId) || [];
+  }
+
+  async getDismissedLectures(userId: string) {
+    return this.dismissed.get(userId) || [];
+  }
+
+  async dismissLecture(userId: string, calendarEventId: string, reason?: string) {
+    const arr = this.dismissed.get(userId) || [];
+    arr.push({ id: calendarEventId, reason, dismissedAt: new Date().toISOString() });
+    this.dismissed.set(userId, arr);
+  }
+
+  async undismissLecture(userId: string, calendarEventId: string) {
+    const arr = this.dismissed.get(userId) || [];
+    this.dismissed.set(userId, arr.filter(d => d.id !== calendarEventId));
+  }
+
+  async sendFriendRequest(userId: string, friendUsername: string) {
+    const f: any = { id: String(Date.now()), from: userId, toUsername: friendUsername, status: "pending" };
+    const arr = this.friendships.get(userId) || [];
+    arr.push(f);
+    this.friendships.set(userId, arr);
+    return f as Friendship;
+  }
+
+  async acceptFriendRequest(userId: string, requestId: string) {
+    // noop for local
+  }
+
+  async declineFriendRequest(userId: string, requestId: string) {
+    // noop for local
+  }
+
+  async removeFriend(userId: string, friendId: string) {
+    // noop for local
+  }
+
+  async getFriends(userId: string) {
+    return [];
+  }
+
+  async getPendingRequests(userId: string) {
+    return [];
+  }
+
+  async getLeaderboard(userId: string) {
+    return [];
+  }
+
+  async logXpEarned(userId: string, amount: number) {
+    const val = this.weeklyXp.get(userId) || 0;
+    this.weeklyXp.set(userId, val + amount);
+  }
+
+  async getUserByUsername(username: string) {
+    for (const [id, u] of this.users) {
+      if (u.username === username || u.email === username) return u as User;
+    }
+    return undefined;
+  }
+}
+
+export const storage = hasDatabase ? new DatabaseStorage() : new LocalMemoryStorage();

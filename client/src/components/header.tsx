@@ -1,4 +1,4 @@
-import { Flame, Moon, Sun, Zap } from "lucide-react";
+import { Flame, Moon, Sun, Zap, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTheme } from "@/components/theme-provider";
@@ -9,9 +9,10 @@ interface HeaderProps {
   userProfile: UserProfile;
   onNavigate: (view: "dashboard" | "upload" | "achievements") => void;
   currentView: string;
+  onLoadDemoData?: () => void;
 }
 
-export function Header({ userProfile, onNavigate, currentView }: HeaderProps) {
+export function Header({ userProfile, onNavigate, currentView, onLoadDemoData }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
 
   const currentLevelXP = Math.pow(userProfile.level, 2) * 100;
@@ -95,6 +96,20 @@ export function Header({ userProfile, onNavigate, currentView }: HeaderProps) {
               />
             </div>
           </div>
+
+          {onLoadDemoData && userProfile.totalLectures === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onLoadDemoData}
+              className="gap-2"
+              data-testid="button-load-demo"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Load Sample Data</span>
+              <span className="sm:hidden">Demo</span>
+            </Button>
+          )}
 
           <Button
             variant="ghost"

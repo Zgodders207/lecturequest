@@ -1,13 +1,25 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
 import * as schema from "@shared/schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is required");
+// Export a flag indicating whether a real database is available.
+export const hasDatabase = !!process.env.DATABASE_URL;
+
+// Export `db` at top-level and initialize it below. Using a top-level
+// mutable export avoids conditional `export` statements which are not
+// valid syntax.
+export let db: any = null;
+
+if (hasDatabase) {
+  // If a DATABASE_URL is provided, wire up the Neon driver.
+  const { Pool, neonConfig } = await import("@neondatabase/serverless");
+  const { drizzle } = await import("drizzle-orm/neon-serverless");
+  const ws = (await import("ws")).default;
+
+  neonConfig.webSocketConstructor = ws;
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  db = drizzle(pool, { schema });
+} else {
+  // No remote DB configured — leave `db` as null. The storage module will
+  // detect this and fall back to an in-memory implementation.
+  console.warn("No DATABASE_URL configured — running with in-memory storage (no DB)");
+  db = null;
 }
-
-neonConfig.webSocketConstructor = ws;
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
